@@ -2,14 +2,486 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta http-equiv="X-UA-Compatible" content="IE=edge">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finanzas</title>
-    <link rel="stylesheet" href="/src/css/style.css">
+    <title>Financial Budget Dashboard - Finanzas</title>
+    <link rel="stylesheet" href="../src/css/style.css">
 </head>
 <body>
-    <h1>Bienvenido a Finanzas</h1>
-    <p>Esta es la página de inicio de tu aplicación web de gestión financiera.</p>
-    <script src="/src/js/app.js"></script>
+    <div class="sidebar-overlay" id="sidebarOverlay"></div>
+
+    <div class="app-container">
+        <!-- Sidebar Navigation -->
+        <aside class="sidebar" id="sidebar">
+            <div class="sidebar-logo">
+                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>
+                <span>FINANZAS</span>
+            </div>
+            <ul class="sidebar-menu">
+                <li class="sidebar-item active" data-tab="overview">
+                    <a href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
+                        Overview
+                    </a>
+                </li>
+                <li class="sidebar-item" data-tab="expenses">
+                    <a href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                        Expenses
+                    </a>
+                </li>
+                <li class="sidebar-item" data-tab="income">
+                    <a href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                        Income
+                    </a>
+                </li>
+                <li class="sidebar-item" data-tab="goals">
+                    <a href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"></path></svg>
+                        Goals
+                    </a>
+                </li>
+                <li class="sidebar-item" data-tab="settings">
+                    <a href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                        Settings
+                    </a>
+                </li>
+            </ul>
+        </aside>
+
+        <!-- Mobile Header Toggle -->
+        <div class="mobile-header">
+            <button class="menu-toggle" id="menuToggle">
+                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+            </button>
+            <div class="mobile-title">Financial Budget Dashboard</div>
+            <div style="width: 24px;"></div> <!-- Spacer -->
+        </div>
+
+        <!-- Dashboard Layout -->
+        <main class="dashboard-layout">
+            
+            <!-- Left/Main Column -->
+            <div class="main-column">
+                <header class="dashboard-header">
+                    <h1 class="dashboard-title">Financial Budget Dashboard</h1>
+                    <span class="dashboard-subtitle">Overview</span>
+                </header>
+
+                <!-- Metrics Grid -->
+                <section class="metrics-grid">
+                    <div class="metric-card income">
+                        <div class="metric-icon-wrapper">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
+                        </div>
+                        <div class="metric-info">
+                            <span class="metric-label">Total Income</span>
+                            <span class="metric-value">$91,627.00</span>
+                            <span class="metric-period">Monthly</span>
+                        </div>
+                    </div>
+                    
+                    <div class="metric-card expenses">
+                        <div class="metric-icon-wrapper">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                        </div>
+                        <div class="metric-info">
+                            <span class="metric-label">Total Expenses</span>
+                            <span class="metric-value">$14,353.50</span>
+                            <span class="metric-period">Monthly</span>
+                        </div>
+                    </div>
+
+                    <div class="metric-card balance">
+                        <div class="metric-icon-wrapper">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
+                        </div>
+                        <div class="metric-info">
+                            <span class="metric-label">Remaining Balance</span>
+                            <span class="metric-value">$77,273.50</span>
+                            <span class="metric-period">Monthly</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Budget Overview Card Table -->
+                <section class="card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Budget Overview</h2>
+                        <div class="card-options">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
+                        </div>
+                    </div>
+
+                    <div class="table-responsive">
+                        <table class="budget-table" id="budgetTable">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Budgeted</th>
+                                    <th>Actual</th>
+                                    <th>Difference</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <!-- Parent Row: Sueldo -->
+                                <tr class="depth-0 parent-row" data-id="sueldo">
+                                    <td>
+                                        <div class="cat-cell">
+                                            <button class="toggle-arrow expanded" aria-label="Toggle Sueldo">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                            </button>
+                                            <span>Sueldo</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$91,627.00</span>
+                                            <div class="progress-track">
+                                                <div class="progress-bar success" style="width: 85%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$77,273.00</span>
+                                            <div class="progress-track">
+                                                <div class="progress-bar success" style="width: 70%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$13,645.50</span>
+                                            <div class="number-indicator-line green"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- Parent Row: Carro (seguro, prest, mant) -->
+                                <tr class="depth-0 parent-row" data-id="carro">
+                                    <td>
+                                        <div class="cat-cell">
+                                            <button class="toggle-arrow expanded" aria-label="Toggle Carro">
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                            </button>
+                                            <span>Carro(seguro, prest, mant)</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$28,000.00</span>
+                                            <div class="progress-track">
+                                                <div class="progress-bar warning" style="width: 50%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$14,335.00</span>
+                                            <div class="progress-track">
+                                                <div class="progress-bar warning" style="width: 45%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$14,353.50</span>
+                                            <div class="number-indicator-line orange"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- Child Row: Carro (seguro) -->
+                                <tr class="depth-1 child-row" data-parent="carro">
+                                    <td>
+                                        <div class="cat-cell">
+                                            <button class="toggle-arrow" disabled>
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                            </button>
+                                            <span>Carro(seguro)</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$4,929.00</span>
+                                            <div class="progress-track">
+                                                <div class="progress-bar danger" style="width: 100%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$7,924.00</span>
+                                            <div class="progress-track">
+                                                <div class="progress-bar danger" style="width: 100%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$1,500.00</span>
+                                            <div class="number-indicator-line red"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- Child Row: Prests, mant -->
+                                <tr class="depth-1 child-row" data-parent="carro">
+                                    <td>
+                                        <div class="cat-cell">
+                                            <button class="toggle-arrow" disabled>
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                            </button>
+                                            <span>Prests, mant</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$2,000.00</span>
+                                            <div class="progress-track">
+                                                <div class="progress-bar success" style="width: 75%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$1,500.00</span>
+                                            <div class="progress-track">
+                                                <div class="progress-bar success" style="width: 60%"></div>
+                                            </div>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">0</span>
+                                            <div class="number-indicator-line grey"></div>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- Row: Viajes/Vacaciones -->
+                                <tr class="depth-0">
+                                    <td>
+                                        <div class="cat-cell">
+                                            <button class="toggle-arrow" disabled>
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                            </button>
+                                            <span>Viajes/Vacaciones</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$2,000.00</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$2,000.00</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">-$2,000.00</span>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- Row: Gastos M -->
+                                <tr class="depth-0">
+                                    <td>
+                                        <div class="cat-cell">
+                                            <button class="toggle-arrow" disabled>
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                            </button>
+                                            <span>Gastos M</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$47,000.00</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$47,000.00</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">-$47,000.00</span>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- Row: Casa(inversion) -->
+                                <tr class="depth-0">
+                                    <td>
+                                        <div class="cat-cell">
+                                            <button class="toggle-arrow" disabled>
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                            </button>
+                                            <span>Casa(inversion)</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$14,519.00</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$14,519.00</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">-$14,519.00</span>
+                                        </div>
+                                    </td>
+                                </tr>
+
+                                <!-- Row: Sueldo Cuadre -->
+                                <tr class="depth-0">
+                                    <td>
+                                        <div class="cat-cell">
+                                            <button class="toggle-arrow" disabled>
+                                                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg>
+                                            </button>
+                                            <span>Sueldo Cuadre</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$91,519.00</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">$91,519.00</span>
+                                        </div>
+                                    </td>
+                                    <td>
+                                        <div class="value-container">
+                                            <span class="value-amount">-$91,519.00</span>
+                                        </div>
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+
+            <!-- Right Column / Summary Widgets -->
+            <div class="right-column">
+                
+                <!-- Monthly Summary Card -->
+                <section class="card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Monthly Summary</h2>
+                    </div>
+
+                    <div style="margin-bottom: 1.25rem;">
+                        <h3 class="card-title" style="font-size: 0.95rem; font-weight: 500; color: var(--color-text-muted);">Monthly Detalle</h3>
+                    </div>
+
+                    <div class="transaction-list">
+                        <!-- Trans 1 -->
+                        <div class="transaction-item">
+                            <div class="transaction-left">
+                                <span class="badge salida">salida</span>
+                                <span class="badge pendiente">PENDIENTE</span>
+                                <span class="trans-desc">QIK</span>
+                            </div>
+                            <span class="trans-amount">$8,429.50</span>
+                        </div>
+
+                        <!-- Trans 2 -->
+                        <div class="transaction-item">
+                            <div class="transaction-left">
+                                <span class="badge entrada">entrada</span>
+                                <span class="badge pendiente">PENDIENTE</span>
+                                <span class="trans-desc">GASTOS M P2 C</span>
+                            </div>
+                            <span class="trans-amount">$12,000.00</span>
+                        </div>
+
+                        <!-- Trans 3 -->
+                        <div class="transaction-item">
+                            <div class="transaction-left">
+                                <span class="badge salida">salida</span>
+                                <span class="badge pendiente">PENDIENTE</span>
+                                <span class="trans-desc">APAP</span>
+                            </div>
+                            <span class="trans-amount">$28,165.50</span>
+                        </div>
+
+                        <!-- Trans 4 -->
+                        <div class="transaction-item">
+                            <div class="transaction-left">
+                                <span class="badge entrada">entrada</span>
+                                <span class="badge pendiente">PENDIENTE</span>
+                                <span class="trans-desc">GASTOS M P1 C</span>
+                            </div>
+                            <span class="trans-amount">$35,000.00</span>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Year-End Summary Card -->
+                <section class="card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Year-End Summary</h2>
+                        <div class="card-options">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
+                        </div>
+                    </div>
+
+                    <table class="summary-table">
+                        <thead>
+                            <tr>
+                                <th>Diciembre 2026<br><span style="font-size: 0.75rem; color: var(--color-text-muted);">Category</span></th>
+                                <th>Diciembre 2025<br><span style="font-size: 0.75rem; color: var(--color-text-muted);">$</span></th>
+                                <th><br><span style="font-size: 0.75rem; color: var(--color-text-muted);">DESTINO</span></th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr>
+                                <td>BONO VACA</td>
+                                <td><span class="pill-amount">$34,990.00</span></td>
+                                <td><span class="pill-destination">GASTOS PENDIENTES</span></td>
+                            </tr>
+                            <tr>
+                                <td>DOBLE</td>
+                                <td><span class="pill-amount">$91,567.00</span></td>
+                                <td><span class="pill-destination">bolsa</span></td>
+                            </tr>
+                            <tr>
+                                <td>NAVIDAD</td>
+                                <td><span class="pill-amount">$128,820.00</span></td>
+                                <td><span class="pill-destination">deuda carro</span></td>
+                            </tr>
+                            <tr>
+                                <td>BONO VACA</td>
+                                <td><span class="pill-amount">$34,908.00</span></td>
+                                <td><span class="pill-destination">AHORRADO</span></td>
+                            </tr>
+                            <tr class="summary-row-total">
+                                <td>TOTAL</td>
+                                <td><span class="pill-amount">$348,385.00</span></td>
+                                <td></td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="../src/js/app.js"></script>
 </body>
 </html>
