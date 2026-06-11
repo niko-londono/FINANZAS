@@ -16,20 +16,41 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // 2. Sidebar Navigation Active Tab Styling
+    // 2. Sidebar & Bottom Navigation Active Tab Styling
     const sidebarItems = document.querySelectorAll('.sidebar-item');
+    const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
+
+    function setActiveTab(tabName) {
+        sidebarItems.forEach(i => {
+            if (i.getAttribute('data-tab') === tabName) {
+                i.classList.add('active');
+            } else {
+                i.classList.remove('active');
+            }
+        });
+        bottomNavItems.forEach(i => {
+            if (i.getAttribute('data-tab') === tabName) {
+                i.classList.add('active');
+            } else {
+                i.classList.remove('active');
+            }
+        });
+        console.log(`Navigating to tab: ${tabName}`);
+    }
+
     sidebarItems.forEach(item => {
         item.addEventListener('click', (e) => {
-            sidebarItems.forEach(i => i.classList.remove('active'));
-            item.classList.add('active');
-            
-            if (sidebar.classList.contains('open')) {
-                sidebar.classList.remove('open');
-                sidebarOverlay.classList.remove('active');
-            }
-
+            e.preventDefault();
             const tabName = item.getAttribute('data-tab');
-            console.log(`Navigating to tab: ${tabName}`);
+            setActiveTab(tabName);
+        });
+    });
+
+    bottomNavItems.forEach(item => {
+        item.addEventListener('click', (e) => {
+            e.preventDefault();
+            const tabName = item.getAttribute('data-tab');
+            setActiveTab(tabName);
         });
     });
 
@@ -388,23 +409,29 @@ document.addEventListener('DOMContentLoaded', () => {
     // Add Category Modal Logic
     const addCategoryModal = document.getElementById('addCategoryModal');
     const addCategoryBtn = document.getElementById('addCategoryBtn');
+    const mobileAddCategoryBtn = document.getElementById('mobileAddCategoryBtn');
     const closeModalBtn = document.getElementById('closeModalBtn');
     const cancelModalBtn = document.getElementById('cancelModalBtn');
     const addCategoryForm = document.getElementById('addCategoryForm');
     const newCatParentSelect = document.getElementById('newCatParent');
 
+    function showAddCategoryModal() {
+        document.getElementById('newCatName').value = '';
+        document.getElementById('newCatBudget').value = '0';
+        populateParentSelect();
+        addCategoryModal.classList.add('active');
+        
+        // Focus name input
+        setTimeout(() => {
+            document.getElementById('newCatName').focus();
+        }, 50);
+    }
+
     if (addCategoryBtn && addCategoryModal) {
-        addCategoryBtn.addEventListener('click', () => {
-            document.getElementById('newCatName').value = '';
-            document.getElementById('newCatBudget').value = '0';
-            populateParentSelect();
-            addCategoryModal.classList.add('active');
-            
-            // Focus name input
-            setTimeout(() => {
-                document.getElementById('newCatName').focus();
-            }, 50);
-        });
+        addCategoryBtn.addEventListener('click', showAddCategoryModal);
+    }
+    if (mobileAddCategoryBtn && addCategoryModal) {
+        mobileAddCategoryBtn.addEventListener('click', showAddCategoryModal);
     }
 
     function hideModal() {
