@@ -47,13 +47,17 @@
     padding: 0;
 }
 
+html, body {
+    max-width: 100%;
+    overflow-x: hidden;
+}
+
 body {
     font-family: var(--font-family);
     background-color: var(--bg-app);
     color: var(--color-text);
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
-    overflow-x: hidden;
 }
 
 /* Layout Grid structure */
@@ -61,6 +65,8 @@ body {
     display: grid;
     grid-template-columns: var(--sidebar-width) 1fr;
     min-height: 100vh;
+    max-width: 100%;
+    overflow-x: hidden;
 }
 
 /* Sidebar Styling */
@@ -747,6 +753,25 @@ body {
         padding: 1px 2px;
     }
     
+    .table-responsive {
+        width: 100%;
+        overflow-x: hidden;
+    }
+    
+    .cat-cell {
+        max-width: 100%;
+        overflow: hidden;
+    }
+    
+    .cat-cell span {
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        display: inline-block;
+        max-width: calc(100% - 24px);
+        vertical-align: middle;
+    }
+    
     .depth-1 .cat-cell {
         padding-left: 0.75rem;
     }
@@ -777,18 +802,38 @@ body {
     
     /* Summary table adjustments */
     .summary-table {
-        font-size: 0.8rem;
+        font-size: 0.75rem;
+        table-layout: fixed;
+        width: 100%;
+        border-spacing: 0 0.25rem;
+    }
+    
+    .summary-table th, 
+    .summary-table td {
+        padding: 0.4rem 0.15rem;
+        word-break: break-word;
+        white-space: normal;
     }
     
     .pill-amount {
         min-width: auto;
-        padding: 0.25rem 0.5rem;
-        font-size: 0.775rem;
+        padding: 0.2rem 0.35rem;
+        font-size: 0.725rem;
+        display: inline-block;
+        max-width: 100%;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
     }
     
     .pill-destination {
-        padding: 0.25rem 0.5rem;
-        font-size: 0.775rem;
+        padding: 0.2rem 0.35rem;
+        font-size: 0.725rem;
+        display: inline-block;
+        max-width: 100%;
+        text-overflow: ellipsis;
+        overflow: hidden;
+        white-space: nowrap;
     }
     
     /* Modal style optimized for mobile screen boundaries */
