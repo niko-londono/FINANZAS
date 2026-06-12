@@ -747,9 +747,15 @@ body {
     
     .budget-input {
         width: 100%;
-        max-width: 65px;
+        max-width: 80px;
         font-size: 0.8rem;
         text-align: right;
+        padding: 1px 2px;
+    }
+    
+    .category-name-input {
+        max-width: 120px;
+        font-size: 0.8rem;
         padding: 1px 2px;
     }
     
@@ -923,7 +929,8 @@ body {
     border: 1px solid transparent;
     border-radius: 4px;
     padding: 2px 4px;
-    width: 100px;
+    width: 110px;
+    text-align: right;
     outline: none;
     transition: var(--transition);
 }
@@ -943,6 +950,35 @@ body {
 }
 .budget-input[type=number] {
     -moz-appearance: textfield;
+}
+
+/* Inline editable category name input */
+.category-name-input {
+    font-family: var(--font-family);
+    font-weight: inherit;
+    font-size: inherit;
+    color: var(--color-text);
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    padding: 1px 4px;
+    outline: none;
+    width: 100%;
+    min-width: 60px;
+    max-width: 200px;
+    transition: var(--transition);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+.category-name-input:hover {
+    background-color: var(--bg-app);
+    border-color: var(--border-color);
+}
+.category-name-input:focus {
+    background-color: #ffffff;
+    border-color: var(--color-info);
+    box-shadow: 0 0 0 2px rgba(2, 132, 199, 0.1);
 }
 
 .btn {

@@ -158,17 +158,25 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    function getBudgetedAmount(cat) {
-        const children = categories.filter(c => c.parentId === cat.id);
-        if (children.length > 0) {
-            return children.reduce((sum, child) => sum + getBudgetedAmount(child), 0);
-        }
-        return cat.budgeted || 0;
+    // Parse a formatted string like "12,853.50" back to a number
+    function parseCurrency(str) {
+        if (typeof str === 'number') return str;
+        if (!str) return 0;
+        // Remove everything except digits, dots, and minus signs
+        const cleaned = String(str).replace(/[^0-9.\-]/g, '');
+        return parseFloat(cleaned) || 0;
+    }
+
+    // Get the sum of all direct children's budgeted values (recursively for nested children)
+    function getChildrenSum(catId) {
+        const children = categories.filter(c => c.parentId === catId);
+        return children.reduce((sum, child) => {
+            return sum + (child.budgeted || 0);
+        }, 0);
     }
 
     function renderCategoryRow(cat, depth) {
         const isParent = categories.some(c => c.parentId === cat.id);
-        const amount = getBudgetedAmount(cat);
         const isCollapsed = collapsedCategories.has(cat.id);
         
         // Check if any ancestor is collapsed to hide this row
@@ -211,29 +219,43 @@ document.addEventListener('DOMContentLoaded', () => {
                 </button>
             `;
         }
+
+        // Category name as editable input (except Sueldo Cuadre which is rendered separately)
+        const nameHTML = `<input type="text" class="category-name-input" value="${cat.name}" data-name-id="${cat.id}" autocomplete="off">`;
         
-        // Budget cell HTML
-        let budgetCellHTML = '';
+        // Budget cell HTML - ALL categories (parent or child) get editable inputs
+        const budgetCellHTML = `
+            <div style="display: flex; align-items: center;">
+                <span style="font-weight: 600; margin-right: 2px;">$</span>
+                <input type="text" class="budget-input" value="${formatCurrency(cat.budgeted || 0)}" data-input-id="${cat.id}" inputmode="decimal">
+            </div>
+        `;
+        
+        // Difference cell content
+        let differenceCellHTML = '';
         if (isParent) {
-            budgetCellHTML = `<span class="value-amount">${formatCurrency(amount)}</span>`;
+            // Parent: Difference = Parent Budget - Sum of Children
+            const childrenSum = getChildrenSum(cat.id);
+            const diff = (cat.budgeted || 0) - childrenSum;
+            let diffStyle = '';
+            if (diff === 0) {
+                diffStyle = 'color: var(--color-success); font-weight: 700;';
+            } else {
+                diffStyle = 'color: var(--color-danger); font-weight: 700;';
+            }
+            const formattedDiff = diff >= 0 ? `$${formatCurrency(diff)}` : `-$${formatCurrency(Math.abs(diff))}`;
+            differenceCellHTML = `<span class="value-amount" style="${diffStyle}">${formattedDiff}</span>`;
         } else {
-            budgetCellHTML = `
-                <div style="display: flex; align-items: center;">
-                    <span style="font-weight: 600; margin-right: 2px;">$</span>
-                    <input type="number" class="budget-input" value="${cat.budgeted}" data-input-id="${cat.id}" step="any">
-                </div>
-            `;
+            // Leaf categories: show dash
+            differenceCellHTML = '<span style="color: var(--color-text-light);">-</span>';
         }
-        
-        // Difference cell content (not applicable for normal categories with Actual removed)
-        let differenceCellHTML = '<span style="color: var(--color-text-light);">-</span>';
         
         return `
             <tr class="${rowClass}" data-row-id="${cat.id}">
                 <td>
                     <div class="cat-cell">
                         ${toggleArrowHTML}
-                        <span>${cat.name}</span>
+                        ${nameHTML}
                         ${deleteBtnHTML}
                     </div>
                 </td>
@@ -255,15 +277,16 @@ document.addEventListener('DOMContentLoaded', () => {
         const sueldoCat = categories.find(c => c.id === 'sueldo');
         const totalIncome = sueldoCat ? sueldoCat.budgeted : 0;
         
-        // Budgeted(Sueldo Cuadre) = Sum of all other top-level categories
+        // Budgeted(Sueldo Cuadre) = Sum of all other top-level categories' budgets
         const otherCategories = categories.filter(c => c.id !== 'sueldo' && c.parentId === null);
-        const budgetedExpenses = otherCategories.reduce((sum, cat) => sum + getBudgetedAmount(cat), 0);
+        const budgetedExpenses = otherCategories.reduce((sum, cat) => sum + (cat.budgeted || 0), 0);
         
         const difference = totalIncome - budgetedExpenses;
         
         let diffStyle = '';
         if (difference > 0) diffStyle = 'color: var(--color-success); font-weight: 700;';
         else if (difference < 0) diffStyle = 'color: var(--color-danger); font-weight: 700;';
+        else diffStyle = 'color: var(--color-success); font-weight: 700;';
         
         const formattedDiff = difference >= 0 ? `$${formatCurrency(difference)}` : `-$${formatCurrency(Math.abs(difference))}`;
         
@@ -329,14 +352,14 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalIncome = sueldoCat ? sueldoCat.budgeted : 0;
         
         const otherCategories = categories.filter(c => c.id !== 'sueldo' && c.parentId === null);
-        const totalExpenses = otherCategories.reduce((sum, cat) => sum + getBudgetedAmount(cat), 0);
+        const totalExpenses = otherCategories.reduce((sum, cat) => sum + (cat.budgeted || 0), 0);
         
         const balance = totalIncome - totalExpenses;
         
         // Update metric values in DOM
         const totalIncomeInput = document.getElementById('totalIncomeInput');
         if (totalIncomeInput && document.activeElement !== totalIncomeInput) {
-            totalIncomeInput.value = totalIncome;
+            totalIncomeInput.value = formatCurrency(totalIncome);
         }
         
         const totalExpensesVal = document.getElementById('totalExpensesVal');
@@ -356,16 +379,25 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function updateCalculationsInline() {
-        // 1. Update parent values in table
+        // 1. Update parent difference values in table
         categories.forEach(cat => {
             const isParent = categories.some(c => c.parentId === cat.id);
             if (isParent) {
-                const amount = getBudgetedAmount(cat);
                 const row = document.querySelector(`[data-row-id="${cat.id}"]`);
                 if (row) {
-                    const valueAmountSpan = row.querySelector('.value-amount');
-                    if (valueAmountSpan) {
-                        valueAmountSpan.textContent = `$${formatCurrency(amount)}`;
+                    const diffSpan = row.querySelector('td:nth-child(3) .value-amount');
+                    if (diffSpan) {
+                        const childrenSum = getChildrenSum(cat.id);
+                        const diff = (cat.budgeted || 0) - childrenSum;
+                        const formattedDiff = diff >= 0 ? `$${formatCurrency(diff)}` : `-$${formatCurrency(Math.abs(diff))}`;
+                        diffSpan.textContent = formattedDiff;
+                        if (diff === 0) {
+                            diffSpan.style.color = 'var(--color-success)';
+                            diffSpan.style.fontWeight = '700';
+                        } else {
+                            diffSpan.style.color = 'var(--color-danger)';
+                            diffSpan.style.fontWeight = '700';
+                        }
                     }
                 }
             }
@@ -376,7 +408,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const totalIncome = sueldoCat ? sueldoCat.budgeted : 0;
         
         const otherCategories = categories.filter(c => c.id !== 'sueldo' && c.parentId === null);
-        const budgetedExpenses = otherCategories.reduce((sum, cat) => sum + getBudgetedAmount(cat), 0);
+        const budgetedExpenses = otherCategories.reduce((sum, cat) => sum + (cat.budgeted || 0), 0);
         const difference = totalIncome - budgetedExpenses;
         
         const sueldoCuadreRow = document.querySelector('[data-row-id="sueldo-cuadre"]');
@@ -396,20 +428,20 @@ document.addEventListener('DOMContentLoaded', () => {
                     diffSpan.style.color = 'var(--color-danger)';
                     diffSpan.style.fontWeight = '700';
                 } else {
-                    diffSpan.style.color = '';
-                    diffSpan.style.fontWeight = '';
+                    diffSpan.style.color = 'var(--color-success)';
+                    diffSpan.style.fontWeight = '700';
                 }
             }
         }
         
-        // 3. Update top metrics
-        updateMetrics();
-        
-        // 4. Update the input in the Sueldo row in case they edited it from the top input
+        // 3. Update the input in the Sueldo row in case they edited it from the top input
         const sueldoRowInput = document.querySelector('[data-input-id="sueldo"]');
         if (sueldoRowInput && document.activeElement !== sueldoRowInput) {
-            sueldoRowInput.value = totalIncome;
+            sueldoRowInput.value = formatCurrency(totalIncome);
         }
+        
+        // 4. Update top metrics
+        updateMetrics();
     }
 
     let hasLoadedFromCloud = false;
@@ -466,26 +498,81 @@ document.addEventListener('DOMContentLoaded', () => {
         categories = categories.filter(c => c.id !== id);
     }
 
-    // Input changes
-    document.addEventListener('input', (e) => {
+    // ===== Budget input focus/blur for formatted numbers =====
+    document.addEventListener('focus', (e) => {
+        // Budget inputs in table: strip formatting on focus
         if (e.target.classList.contains('budget-input')) {
             const id = e.target.getAttribute('data-input-id');
-            const val = parseFloat(e.target.value) || 0;
-            
+            const cat = categories.find(c => c.id === id);
+            if (cat) {
+                e.target.value = cat.budgeted || 0;
+            }
+        }
+        // Total Income input: strip formatting on focus
+        if (e.target.id === 'totalIncomeInput') {
+            const sueldoCat = categories.find(c => c.id === 'sueldo');
+            e.target.value = sueldoCat ? sueldoCat.budgeted : 0;
+        }
+    }, true);
+
+    document.addEventListener('blur', (e) => {
+        // Budget inputs in table: parse, save, re-format on blur
+        if (e.target.classList.contains('budget-input')) {
+            const id = e.target.getAttribute('data-input-id');
+            const val = parseCurrency(e.target.value);
             const cat = categories.find(c => c.id === id);
             if (cat) {
                 cat.budgeted = val;
+                e.target.value = formatCurrency(val);
                 saveCategories();
+                updateCalculationsInline();
+            }
+        }
+        // Total Income input: parse, save, re-format on blur
+        if (e.target.id === 'totalIncomeInput') {
+            const val = parseCurrency(e.target.value);
+            const sueldoCat = categories.find(c => c.id === 'sueldo');
+            if (sueldoCat) {
+                sueldoCat.budgeted = val;
+                e.target.value = formatCurrency(val);
+                saveCategories();
+                updateCalculationsInline();
+            }
+        }
+        // Category name input: save on blur
+        if (e.target.classList.contains('category-name-input')) {
+            const id = e.target.getAttribute('data-name-id');
+            const newName = e.target.value.trim();
+            const cat = categories.find(c => c.id === id);
+            if (cat && newName && newName !== cat.name) {
+                cat.name = newName;
+                saveCategories();
+                // Update parent select options
+                populateParentSelect();
+            }
+        }
+    }, true);
+
+    // Live update calculations while typing in budget fields (for real-time feedback)
+    document.addEventListener('input', (e) => {
+        if (e.target.classList.contains('budget-input')) {
+            const id = e.target.getAttribute('data-input-id');
+            const val = parseCurrency(e.target.value);
+            const cat = categories.find(c => c.id === id);
+            if (cat) {
+                cat.budgeted = val;
+                // Don't save to GAS on every keystroke, but update calculations live
+                localStorage.setItem('budget_categories', JSON.stringify(categories));
                 updateCalculationsInline();
             }
         }
         
         if (e.target.id === 'totalIncomeInput') {
-            const val = parseFloat(e.target.value) || 0;
+            const val = parseCurrency(e.target.value);
             const sueldoCat = categories.find(c => c.id === 'sueldo');
             if (sueldoCat) {
                 sueldoCat.budgeted = val;
-                saveCategories();
+                localStorage.setItem('budget_categories', JSON.stringify(categories));
                 updateCalculationsInline();
             }
         }
@@ -562,19 +649,10 @@ document.addEventListener('DOMContentLoaded', () => {
             const newCat = {
                 id: id,
                 name: name,
-                budgeted: parentId ? budget : 0,
+                budgeted: budget,
                 parentId: parentId,
                 canDelete: true
             };
-            
-            if (parentId) {
-                const parent = categories.find(c => c.id === parentId);
-                if (parent) {
-                    parent.budgeted = 0; // Parent sums children, reset manual value
-                }
-            } else {
-                newCat.budgeted = budget;
-            }
             
             categories.push(newCat);
             saveCategories();
@@ -637,3 +715,4 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initialize layout
     init();
 });
+
