@@ -69,8 +69,86 @@ document.addEventListener('DOMContentLoaded', () => {
     let collapsedCategories = new Set(JSON.parse(localStorage.getItem('collapsed_categories')) || []);
     const tbody = document.getElementById('budgetTableBody');
 
+    // Google Apps Script integration state
+    let gasApiUrl = localStorage.getItem('gas_api_url');
+    if (gasApiUrl === null) {
+        gasApiUrl = 'https://script.google.com/macros/s/AKfycbzkqT6M_wM2b8ZTAua5O-DvS6nOs5MeKy-9qdUcNBWrJVh8si8VyVE2fUl6YSWomPnRCw/exec';
+        localStorage.setItem('gas_api_url', gasApiUrl);
+    }
+
     function saveCategories() {
         localStorage.setItem('budget_categories', JSON.stringify(categories));
+        saveToGAS();
+    }
+
+    function updateDbStatus(status) {
+        const btns = document.querySelectorAll('.db-status-btn');
+        btns.forEach(btn => {
+            // Remove previous statuses
+            btn.classList.remove('offline', 'connected', 'syncing', 'error');
+            btn.classList.add(status);
+            
+            if (status === 'connected') {
+                btn.title = 'Conectado a Google Sheets';
+            } else if (status === 'offline') {
+                btn.title = 'Modo Local (Sin base de datos)';
+            } else if (status === 'syncing') {
+                btn.title = 'Sincronizando con Google Sheets...';
+            } else if (status === 'error') {
+                btn.title = 'Error de conexión con Apps Script';
+            }
+        });
+    }
+
+    async function loadFromGAS() {
+        if (!gasApiUrl) {
+            updateDbStatus('offline');
+            return;
+        }
+        updateDbStatus('syncing');
+        try {
+            const response = await fetch(gasApiUrl);
+            if (!response.ok) throw new Error('Response status ' + response.status);
+            const data = await response.json();
+            if (Array.isArray(data) && data.length > 0) {
+                categories = data;
+                localStorage.setItem('budget_categories', JSON.stringify(categories));
+                updateDbStatus('connected');
+                
+                // Re-render table and metrics inline
+                if (tbody) tbody.innerHTML = generateTableRowsHTML();
+                updateMetrics();
+                populateParentSelect();
+            } else {
+                updateDbStatus('connected');
+                saveToGAS(); // upload current localStorage defaults if cloud is empty
+            }
+        } catch (err) {
+            console.error('Failed to load from Apps Script:', err);
+            updateDbStatus('error');
+        }
+    }
+
+    async function saveToGAS() {
+        if (!gasApiUrl) {
+            updateDbStatus('offline');
+            return;
+        }
+        updateDbStatus('syncing');
+        try {
+            await fetch(gasApiUrl, {
+                method: 'POST',
+                mode: 'no-cors', // bypass CORS preflight redirect issues in GAS
+                headers: {
+                    'Content-Type': 'text/plain'
+                },
+                body: JSON.stringify(categories)
+            });
+            updateDbStatus('connected');
+        } catch (err) {
+            console.error('Failed to save to Apps Script:', err);
+            updateDbStatus('error');
+        }
     }
 
     function formatCurrency(val) {
@@ -334,11 +412,18 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    let hasLoadedFromCloud = false;
+
     function init() {
         if (!tbody) return;
         tbody.innerHTML = generateTableRowsHTML();
         updateMetrics();
         populateParentSelect();
+        
+        if (!hasLoadedFromCloud) {
+            hasLoadedFromCloud = true;
+            loadFromGAS();
+        }
     }
 
     // Event Delegations
@@ -495,6 +580,56 @@ document.addEventListener('DOMContentLoaded', () => {
             saveCategories();
             
             hideModal();
+            init();
+        });
+    }
+
+    // Database Config Modal Logic
+    const dbConfigModal = document.getElementById('dbConfigModal');
+    const cloudSyncBtn = document.getElementById('cloudSyncBtn');
+    const mobileCloudSyncBtn = document.getElementById('mobileCloudSyncBtn');
+    const closeDbModalBtn = document.getElementById('closeDbModalBtn');
+    const cancelDbModalBtn = document.getElementById('cancelDbModalBtn');
+    const dbConfigForm = document.getElementById('dbConfigForm');
+    const gasUrlInput = document.getElementById('gasUrlInput');
+
+    function showDbModal() {
+        if (gasUrlInput) gasUrlInput.value = gasApiUrl;
+        if (dbConfigModal) dbConfigModal.classList.add('active');
+        setTimeout(() => {
+            if (gasUrlInput) gasUrlInput.focus();
+        }, 50);
+    }
+
+    if (cloudSyncBtn) cloudSyncBtn.addEventListener('click', showDbModal);
+    if (mobileCloudSyncBtn) mobileCloudSyncBtn.addEventListener('click', showDbModal);
+
+    function hideDbModal() {
+        if (dbConfigModal) dbConfigModal.classList.remove('active');
+    }
+
+    if (closeDbModalBtn) closeDbModalBtn.addEventListener('click', hideDbModal);
+    if (cancelDbModalBtn) cancelDbModalBtn.addEventListener('click', hideDbModal);
+    if (dbConfigModal) {
+        dbConfigModal.addEventListener('click', (e) => {
+            if (e.target === dbConfigModal) {
+                hideDbModal();
+            }
+        });
+    }
+
+    if (dbConfigForm) {
+        dbConfigForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const newUrl = gasUrlInput.value.trim();
+            gasApiUrl = newUrl;
+            localStorage.setItem('gas_api_url', newUrl);
+            
+            hideDbModal();
+            
+            // Clear cloud load lock and fetch new data from the new endpoint
+            hasLoadedFromCloud = false;
             init();
         });
     }

@@ -1112,4 +1112,35 @@ body {
     height: 14px;
 }
 
+/* Database Sync Buttons & States */
+.db-status-btn {
+    position: relative;
+    transition: var(--transition);
+}
+.db-status-btn.offline svg {
+    color: var(--color-text-light);
+}
+.db-status-btn.connected {
+    border-color: rgba(16, 185, 129, 0.2);
+    background-color: var(--color-success-bg);
+}
+.db-status-btn.connected svg {
+    color: var(--color-success);
+}
+.db-status-btn.error {
+    border-color: rgba(239, 68, 68, 0.2);
+    background-color: var(--color-danger-bg);
+}
+.db-status-btn.error svg {
+    color: var(--color-danger);
+}
+.db-status-btn.syncing svg {
+    color: var(--color-info);
+    animation: cloud-pulse 1.5s infinite ease-in-out;
+}
+@keyframes cloud-pulse {
+    0%, 100% { opacity: 0.5; transform: scale(1); }
+    50% { opacity: 1; transform: scale(1.08); }
+}
+
 

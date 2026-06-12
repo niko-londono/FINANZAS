@@ -63,10 +63,15 @@
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>
                 <span>FINANZAS</span>
             </div>
-            <button id="mobileAddCategoryBtn" class="btn btn-primary btn-sm" style="padding: 0.35rem 0.6rem; border-radius: 6px; font-weight: 600; gap: 0.25rem;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>Categoría</span>
-            </button>
+            <div style="display: flex; align-items: center; gap: 0.5rem;">
+                <button id="mobileCloudSyncBtn" class="btn btn-secondary btn-sm db-status-btn offline" style="padding: 0.35rem; border-radius: 6px; color: var(--color-text-light);" title="Configurar Cloud">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
+                </button>
+                <button id="mobileAddCategoryBtn" class="btn btn-primary btn-sm" style="padding: 0.35rem 0.6rem; border-radius: 6px; font-weight: 600; gap: 0.25rem;">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <span>Categoría</span>
+                </button>
+            </div>
         </div>
 
         <!-- Dashboard Layout -->
@@ -122,10 +127,13 @@
                 <section class="card">
                     <div class="card-header-flex">
                         <h2 class="card-title">Budget Overview</h2>
-                        <div style="display: flex; align-items: center; gap: 1rem;">
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
                             <button id="addCategoryBtn" class="btn btn-primary btn-sm">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                                 Agregar Categoría
+                            </button>
+                            <button id="cloudSyncBtn" class="btn btn-secondary btn-sm db-status-btn offline" style="color: var(--color-text-light);" title="Configurar Sincronización en la Nube">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
                             </button>
                             <div class="card-options">
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
@@ -309,6 +317,36 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" id="cancelModalBtn">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Database Configuration Modal -->
+    <div class="modal-overlay" id="dbConfigModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Base de Datos Cloud</h3>
+                <button class="modal-close" id="closeDbModalBtn" aria-label="Cerrar modal">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="dbConfigForm">
+                <div class="modal-body">
+                    <p style="font-size: 0.825rem; color: var(--color-text-muted); margin-bottom: 0.5rem; line-height: 1.4;">
+                        Configura un backend en la nube con Google Apps Script para guardar tu presupuesto en Google Sheets.
+                    </p>
+                    <div class="form-group">
+                        <label for="gasUrlInput">URL de Google Apps Script Web App</label>
+                        <input type="url" id="gasUrlInput" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" style="font-size: 0.8rem;">
+                    </div>
+                    <div style="font-size: 0.775rem; color: var(--color-text-light);">
+                        Deje este campo vacío para usar el almacenamiento local de su navegador (localStorage).
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelDbModalBtn">Cancelar</button>
+                    <button type="submit" class="btn btn-primary">Conectar y Guardar</button>
                 </div>
             </form>
         </div>
