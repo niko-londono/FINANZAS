@@ -238,7 +238,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const childrenSum = getChildrenSum(cat.id);
             const diff = (cat.budgeted || 0) - childrenSum;
             let diffStyle = '';
-            if (diff === 0) {
+            if (diff >= 0) {
                 diffStyle = 'color: var(--color-success); font-weight: 700;';
             } else {
                 diffStyle = 'color: var(--color-danger); font-weight: 700;';
@@ -391,7 +391,7 @@ document.addEventListener('DOMContentLoaded', () => {
                         const diff = (cat.budgeted || 0) - childrenSum;
                         const formattedDiff = diff >= 0 ? `$${formatCurrency(diff)}` : `-$${formatCurrency(Math.abs(diff))}`;
                         diffSpan.textContent = formattedDiff;
-                        if (diff === 0) {
+                        if (diff >= 0) {
                             diffSpan.style.color = 'var(--color-success)';
                             diffSpan.style.fontWeight = '700';
                         } else {
