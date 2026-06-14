@@ -188,7 +188,7 @@ document.addEventListener('DOMContentLoaded', () => {
     let colorMap = {};
     function rebuildColorMap() {
         colorMap = {};
-        const topLevel = categories.filter(c => c.parentId === null && c.id !== 'sueldo');
+        const topLevel = categories.filter(c => c.parentId === null);
         topLevel.forEach((cat, idx) => {
             colorMap[cat.id] = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
         });
@@ -196,13 +196,14 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Get the color for a given category (finds its root ancestor)
     function getCategoryColor(cat, isChild) {
-        if (cat.id === 'sueldo') return null;
         let rootId = cat.id;
         let current = cat;
         while (current.parentId) {
             rootId = current.parentId;
             current = categories.find(c => c.id === current.parentId) || current;
         }
+        // Sueldo root itself: no background (stays white)
+        if (rootId === 'sueldo' && !isChild) return null;
         const colors = colorMap[rootId];
         if (!colors) return null;
         return isChild ? colors.child : colors.parent;
@@ -385,7 +386,7 @@ document.addEventListener('DOMContentLoaded', () => {
         
         function renderTree(list, depth) {
             list.forEach(cat => {
-                if (cat.id === 'sueldo' || cat.id === 'sueldo-cuadre') return;
+                if (cat.id === 'sueldo-cuadre') return;
                 
                 html += renderCategoryRow(cat, depth);
                 
@@ -396,13 +397,17 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
         
-        // Income (Sueldo) always at the top
+        // Income (Sueldo) always at the top, with its children
         const sueldoCat = categories.find(c => c.id === 'sueldo');
         if (sueldoCat) {
             html += renderCategoryRow(sueldoCat, 0);
+            const sueldoChildren = categories.filter(c => c.parentId === 'sueldo');
+            if (sueldoChildren.length > 0) {
+                renderTree(sueldoChildren, 1);
+            }
         }
         
-        // Other categories
+        // Other top-level categories (excluding Sueldo)
         const otherTopLevel = topLevel.filter(c => c.id !== 'sueldo');
         renderTree(otherTopLevel, 0);
         
