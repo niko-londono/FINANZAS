@@ -551,6 +551,105 @@ body {
 .summary-editable-input::placeholder {
     color: var(--color-text-light);
 }
+/* ── Tarjetas Tab: TC Table ──────────────────────────────────────────── */
+.tc-table-wrapper {
+    overflow-x: auto;
+    border-radius: 10px;
+    border: 1px solid var(--border-color);
+}
+
+.tc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.tc-table thead tr {
+    background: #f1f5f9;
+}
+
+.tc-table th {
+    padding: 0.7rem 1rem;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    text-align: left;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.tc-th-card     { width: 30%; }
+.tc-th-currency { width: 22%; }
+.tc-th-nota     { width: 26%; }
+
+.tc-row {
+    border-bottom: 1px solid var(--border-color);
+    transition: background 0.15s;
+}
+.tc-row:last-child { border-bottom: none; }
+.tc-row:hover { background: #fafbfc; }
+
+.tc-name {
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    white-space: nowrap;
+}
+
+.tc-status-cell {
+    padding: 0.55rem 0.75rem;
+}
+
+.tc-nota-cell {
+    padding: 0.55rem 0.75rem;
+}
+
+.tc-nota-input {
+    width: 100%;
+    border: none;
+    border-radius: 6px;
+    padding: 0.4rem 0.6rem;
+    font-family: inherit;
+    font-size: 0.82rem;
+    background: #fef9c3;
+    color: #78350f;
+    outline: none;
+    transition: background 0.2s, box-shadow 0.2s;
+}
+.tc-nota-input:focus {
+    background: #fef08a;
+    box-shadow: 0 0 0 2px rgba(234, 179, 8, 0.3);
+}
+.tc-nota-input::placeholder {
+    color: #a16207;
+    opacity: 0.6;
+}
+
+/* ── Tarjetas Tab: Composition cards grid ────────────────────────────── */
+.comp-cards-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+    gap: 0.85rem;
+}
+
+.comp-card {
+    background: #f8fafc;
+    border: 1px solid var(--border-color);
+    border-radius: 10px;
+    padding: 0.85rem 1rem;
+}
+
+.comp-card-title {
+    font-size: 0.78rem;
+    font-weight: 700;
+    color: var(--color-text-primary);
+    letter-spacing: 0.04em;
+    margin-bottom: 0.6rem;
+    text-transform: uppercase;
+}
+
+/* ── Distribución / Tarjetas shared card list ────────────────────────── */
 .tarjetas-list {
     display: flex;
     flex-direction: column;

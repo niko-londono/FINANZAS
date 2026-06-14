@@ -36,6 +36,12 @@
                         Summary
                     </a>
                 </li>
+                <li class="sidebar-item" data-tab="distribucion">
+                    <a href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
+                        Distribución
+                    </a>
+                </li>
                 <li class="sidebar-item" data-tab="tarjetas">
                     <a href="#">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
@@ -220,11 +226,11 @@
             </div>
         </div>
 
-        <!-- Tarjetas Tab Page (hidden by default) -->
-        <div class="tab-page" id="tarjetasPage" style="display:none;">
+        <!-- Distribución Tab Page (hidden by default) -->
+        <div class="tab-page" id="distribucionPage" style="display:none;">
             <div class="main-column" style="max-width: 700px;">
                 <header class="dashboard-header">
-                    <h1 class="dashboard-title">Pago de tarjetas</h1>
+                    <h1 class="dashboard-title">Distribución</h1>
                     <span class="dashboard-subtitle">Monthly Summary</span>
                 </header>
 
@@ -245,20 +251,6 @@
                                 <span class="status-label">PENDIENTE</span>
                             </button>
                         </div>
-                        <div class="tarjeta-composition">
-                            <div class="composition-header">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
-                                Composición
-                            </div>
-                            <div class="composition-row">
-                                <select class="comp-select" data-comp-cat>
-                                    <option value="">— Categoría —</option>
-                                </select>
-                                <select class="comp-select" data-comp-sub disabled>
-                                    <option value="">— Subcategoría —</option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- GASTOS M parte 2 -->
@@ -275,20 +267,6 @@
                                 <span class="status-dot"></span>
                                 <span class="status-label">PENDIENTE</span>
                             </button>
-                        </div>
-                        <div class="tarjeta-composition">
-                            <div class="composition-header">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
-                                Composición
-                            </div>
-                            <div class="composition-row">
-                                <select class="comp-select" data-comp-cat>
-                                    <option value="">— Categoría —</option>
-                                </select>
-                                <select class="comp-select" data-comp-sub disabled>
-                                    <option value="">— Subcategoría —</option>
-                                </select>
-                            </div>
                         </div>
                     </div>
 
@@ -307,20 +285,6 @@
                                 <span class="status-label">PENDIENTE</span>
                             </button>
                         </div>
-                        <div class="tarjeta-composition">
-                            <div class="composition-header">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
-                                Composición
-                            </div>
-                            <div class="composition-row">
-                                <select class="comp-select" data-comp-cat>
-                                    <option value="">— Categoría —</option>
-                                </select>
-                                <select class="comp-select" data-comp-sub disabled>
-                                    <option value="">— Subcategoría —</option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
 
                     <!-- GASTOS M parte 1 -->
@@ -338,23 +302,128 @@
                                 <span class="status-label">PENDIENTE</span>
                             </button>
                         </div>
-                        <div class="tarjeta-composition">
-                            <div class="composition-header">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
-                                Composición
-                            </div>
-                            <div class="composition-row">
-                                <select class="comp-select" data-comp-cat>
-                                    <option value="">— Categoría —</option>
-                                </select>
-                                <select class="comp-select" data-comp-sub disabled>
-                                    <option value="">— Subcategoría —</option>
-                                </select>
-                            </div>
-                        </div>
                     </div>
 
                 </div>
+            </div>
+        </div>
+
+        <!-- Tarjetas Tab Page (hidden by default) -->
+        <div class="tab-page" id="tarjetasPage" style="display:none;">
+            <div class="main-column" style="max-width: 860px;">
+                <header class="dashboard-header">
+                    <h1 class="dashboard-title">Tarjetas</h1>
+                    <span class="dashboard-subtitle">Estado de pago por moneda</span>
+                </header>
+
+                <section class="card">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Composición de Tarjetas</h2>
+                    </div>
+                    <div class="tc-table-wrapper">
+                        <table class="tc-table">
+                            <thead>
+                                <tr>
+                                    <th class="tc-th-card">TARJETA C</th>
+                                    <th class="tc-th-currency">USD</th>
+                                    <th class="tc-th-currency">DOP</th>
+                                    <th class="tc-th-nota">NOTA</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr class="tc-row">
+                                    <td class="tc-name">TC CONTIGO</td>
+                                    <td class="tc-status-cell">
+                                        <button class="status-toggle" data-done="false">
+                                            <span class="status-dot"></span>
+                                            <span class="status-label">PENDIENTE</span>
+                                        </button>
+                                    </td>
+                                    <td class="tc-status-cell">
+                                        <button class="status-toggle" data-done="false">
+                                            <span class="status-dot"></span>
+                                            <span class="status-label">PENDIENTE</span>
+                                        </button>
+                                    </td>
+                                    <td class="tc-nota-cell">
+                                        <input type="text" class="tc-nota-input" placeholder="Agregar nota...">
+                                    </td>
+                                </tr>
+                                <tr class="tc-row">
+                                    <td class="tc-name">TC JET BLUE</td>
+                                    <td class="tc-status-cell">
+                                        <button class="status-toggle" data-done="false">
+                                            <span class="status-dot"></span>
+                                            <span class="status-label">PENDIENTE</span>
+                                        </button>
+                                    </td>
+                                    <td class="tc-status-cell">
+                                        <button class="status-toggle" data-done="false">
+                                            <span class="status-dot"></span>
+                                            <span class="status-label">PENDIENTE</span>
+                                        </button>
+                                    </td>
+                                    <td class="tc-nota-cell">
+                                        <input type="text" class="tc-nota-input" placeholder="Agregar nota...">
+                                    </td>
+                                </tr>
+                                <tr class="tc-row">
+                                    <td class="tc-name">TC APAP</td>
+                                    <td class="tc-status-cell">
+                                        <button class="status-toggle" data-done="false">
+                                            <span class="status-dot"></span>
+                                            <span class="status-label">PENDIENTE</span>
+                                        </button>
+                                    </td>
+                                    <td class="tc-status-cell">
+                                        <button class="status-toggle" data-done="false">
+                                            <span class="status-dot"></span>
+                                            <span class="status-label">PENDIENTE</span>
+                                        </button>
+                                    </td>
+                                    <td class="tc-nota-cell">
+                                        <input type="text" class="tc-nota-input" placeholder="Agregar nota...">
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <!-- Composición per card -->
+                    <div style="margin-top: 1.5rem;">
+                        <div class="composition-header" style="margin-bottom: 0.9rem;">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+                            Composición por tarjeta
+                        </div>
+                        <div class="comp-cards-grid">
+
+                            <div class="comp-card">
+                                <div class="comp-card-title">TC CONTIGO</div>
+                                <div class="composition-row">
+                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
+                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                </div>
+                            </div>
+
+                            <div class="comp-card">
+                                <div class="comp-card-title">TC JET BLUE</div>
+                                <div class="composition-row">
+                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
+                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                </div>
+                            </div>
+
+                            <div class="comp-card">
+                                <div class="comp-card-title">TC APAP</div>
+                                <div class="composition-row">
+                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
+                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                </div>
+                            </div>
+
+                        </div>
+                    </div>
+                </section>
             </div>
         </div>
     </div>
@@ -368,6 +437,10 @@
         <div class="bottom-nav-item" data-tab="summary">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
             <span>Summary</span>
+        </div>
+        <div class="bottom-nav-item" data-tab="distribucion">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
+            <span>Distribución</span>
         </div>
         <div class="bottom-nav-item" data-tab="tarjetas">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>

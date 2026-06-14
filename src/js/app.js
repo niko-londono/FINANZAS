@@ -22,10 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const mainLayout = document.querySelector('.dashboard-layout');
     const summaryPage = document.getElementById('summaryPage');
+    const distribucionPage = document.getElementById('distribucionPage');
     const tarjetasPage = document.getElementById('tarjetasPage');
 
     const TAB_PAGES = {
         summary: summaryPage,
+        distribucion: distribucionPage,
         tarjetas: tarjetasPage,
     };
 
