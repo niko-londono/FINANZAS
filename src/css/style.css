@@ -360,7 +360,7 @@ body {
 }
 
 .budget-table tr:hover td {
-    background-color: #fafbfc;
+    filter: brightness(0.97);
 }
 
 /* Category structure styles */
@@ -461,6 +461,15 @@ body {
 /* Collapsing functionality classes */
 .collapsed-row {
     display: none !important;
+}
+
+/* Colored category rows get a subtle left border accent on first td */
+.budget-table tr[style*="background-color"] td:first-child {
+    border-left: 3px solid rgba(0,0,0,0.08);
+}
+
+.budget-table tr {
+    transition: filter 0.15s ease;
 }
 
 /* Monthly Detalle Widget */

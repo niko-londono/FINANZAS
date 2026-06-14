@@ -151,6 +151,42 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
+    // Pastel color palette for top-level categories
+    const CATEGORY_COLORS = [
+        { parent: 'rgba(99, 179, 237, 0.18)',  child: 'rgba(99, 179, 237, 0.07)'  },  // blue
+        { parent: 'rgba(104, 211, 145, 0.18)', child: 'rgba(104, 211, 145, 0.07)' },  // green
+        { parent: 'rgba(246, 173, 85, 0.18)',  child: 'rgba(246, 173, 85, 0.07)'  },  // amber
+        { parent: 'rgba(183, 148, 244, 0.18)', child: 'rgba(183, 148, 244, 0.07)' },  // purple
+        { parent: 'rgba(252, 129, 129, 0.18)', child: 'rgba(252, 129, 129, 0.07)' },  // red-pink
+        { parent: 'rgba(99, 218, 211, 0.18)',  child: 'rgba(99, 218, 211, 0.07)'  },  // teal
+        { parent: 'rgba(246, 135, 179, 0.18)', child: 'rgba(246, 135, 179, 0.07)' },  // pink
+        { parent: 'rgba(154, 205, 116, 0.18)', child: 'rgba(154, 205, 116, 0.07)' },  // lime
+    ];
+
+    // Build a stable color index map keyed by root category id
+    let colorMap = {};
+    function rebuildColorMap() {
+        colorMap = {};
+        const topLevel = categories.filter(c => c.parentId === null && c.id !== 'sueldo');
+        topLevel.forEach((cat, idx) => {
+            colorMap[cat.id] = CATEGORY_COLORS[idx % CATEGORY_COLORS.length];
+        });
+    }
+
+    // Get the color for a given category (finds its root ancestor)
+    function getCategoryColor(cat, isChild) {
+        if (cat.id === 'sueldo') return null;
+        let rootId = cat.id;
+        let current = cat;
+        while (current.parentId) {
+            rootId = current.parentId;
+            current = categories.find(c => c.id === current.parentId) || current;
+        }
+        const colors = colorMap[rootId];
+        if (!colors) return null;
+        return isChild ? colors.child : colors.parent;
+    }
+
     function formatCurrency(val) {
         return Number(val).toLocaleString('en-US', {
             minimumFractionDigits: 2,
@@ -192,6 +228,11 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         const rowClass = `depth-${depth} ${isParent ? 'parent-row' : 'child-row'} ${isHidden ? 'collapsed-row' : ''}`;
+        
+        // Row background color
+        const isChild = depth > 0 || cat.parentId !== null;
+        const bgColor = getCategoryColor(cat, isChild);
+        const rowStyle = bgColor ? `style="background-color: ${bgColor};"` : '';
         
         // Toggle arrow HTML
         let toggleArrowHTML = '';
@@ -251,7 +292,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         
         return `
-            <tr class="${rowClass}" data-row-id="${cat.id}">
+            <tr class="${rowClass}" data-row-id="${cat.id}" ${rowStyle}>
                 <td>
                     <div class="cat-cell">
                         ${toggleArrowHTML}
@@ -314,6 +355,9 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function generateTableRowsHTML() {
         let html = '';
+        
+        // Rebuild color map so colors are stable by root category order
+        rebuildColorMap();
         
         // Find top-level items
         const topLevel = categories.filter(c => c.parentId === null);
