@@ -22,6 +22,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const mainLayout = document.querySelector('.dashboard-layout');
     const summaryPage = document.getElementById('summaryPage');
+    const tarjetasPage = document.getElementById('tarjetasPage');
+
+    const TAB_PAGES = {
+        summary: summaryPage,
+        tarjetas: tarjetasPage,
+    };
 
     function setActiveTab(tabName) {
         sidebarItems.forEach(i => {
@@ -31,31 +37,39 @@ document.addEventListener('DOMContentLoaded', () => {
             i.classList.toggle('active', i.getAttribute('data-tab') === tabName);
         });
 
-        if (tabName === 'summary') {
-            if (mainLayout) mainLayout.style.display = 'none';
-            if (summaryPage) summaryPage.style.display = '';
-        } else {
-            if (mainLayout) mainLayout.style.display = '';
-            if (summaryPage) summaryPage.style.display = 'none';
-        }
+        // Show/hide main layout vs tab pages
+        const isTabPage = TAB_PAGES.hasOwnProperty(tabName);
+        if (mainLayout) mainLayout.style.display = isTabPage ? 'none' : '';
+        Object.entries(TAB_PAGES).forEach(([key, el]) => {
+            if (el) el.style.display = (isTabPage && key === tabName) ? '' : 'none';
+        });
+
         console.log(`Navigating to tab: ${tabName}`);
     }
 
-    // Pendiente/Done toggle for Monthly Summary
+    // Status toggle (Pendiente ↔ Done) — works for both old .pendiente-toggle and new .status-toggle
     document.addEventListener('click', (e) => {
-        const btn = e.target.closest('.pendiente-toggle');
+        const btn = e.target.closest('.pendiente-toggle, .status-toggle');
         if (!btn) return;
         const isDone = btn.getAttribute('data-done') === 'true';
         if (isDone) {
             btn.setAttribute('data-done', 'false');
-            btn.textContent = 'PENDIENTE';
-            btn.classList.remove('done');
-            btn.classList.add('pendiente');
+            if (btn.classList.contains('pendiente-toggle')) {
+                btn.textContent = 'PENDIENTE';
+                btn.classList.remove('done');
+                btn.classList.add('pendiente');
+            } else {
+                btn.querySelector('.status-label').textContent = 'PENDIENTE';
+            }
         } else {
             btn.setAttribute('data-done', 'true');
-            btn.textContent = 'DONE';
-            btn.classList.remove('pendiente');
-            btn.classList.add('done');
+            if (btn.classList.contains('pendiente-toggle')) {
+                btn.textContent = 'DONE';
+                btn.classList.remove('pendiente');
+                btn.classList.add('done');
+            } else {
+                btn.querySelector('.status-label').textContent = 'DONE';
+            }
         }
     });
 
@@ -140,6 +154,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 if (tbody) tbody.innerHTML = generateTableRowsHTML();
                 updateMetrics();
                 populateParentSelect();
+                populateCompositionDropdowns();
             } else {
                 updateDbStatus('connected');
                 saveToGAS(); // upload current localStorage defaults if cloud is empty
@@ -752,7 +767,145 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    // ── Tarjetas: populate Category / Subcategory dropdowns ──────────────
+    function populateCompositionDropdowns() {
+        const catSelects = document.querySelectorAll('[data-comp-cat]');
+        catSelects.forEach(catSel => {
+            const currentVal = catSel.value;
+            // Build top-level category options (exclude sueldo-cuadre)
+            const topLevel = categories.filter(c => c.parentId === null);
+            catSel.innerHTML = '<option value="">— Categoría —</option>';
+            topLevel.forEach(cat => {
+                const opt = document.createElement('option');
+                opt.value = cat.id;
+                opt.textContent = cat.name;
+                catSel.appendChild(opt);
+            });
+            catSel.value = currentVal;
+
+            // Populate the sibling subcategory select based on current value
+            const row = catSel.closest('.composition-row');
+            if (row) {
+                const subSel = row.querySelector('[data-comp-sub]');
+                if (subSel && currentVal) {
+                    fillSubcategorySelect(subSel, currentVal);
+                }
+            }
+        });
+    }
+
+    function fillSubcategorySelect(subSel, parentId) {
+        const children = categories.filter(c => c.parentId === parentId);
+        subSel.innerHTML = '<option value="">— Subcategoría —</option>';
+        if (children.length === 0) {
+            subSel.disabled = true;
+        } else {
+            subSel.disabled = false;
+            children.forEach(child => {
+                const opt = document.createElement('option');
+                opt.value = child.id;
+                opt.textContent = child.name;
+                subSel.appendChild(opt);
+            });
+        }
+    }
+
+    // Delegate category select change → populate subcategory
+    document.addEventListener('change', (e) => {
+        if (e.target.hasAttribute('data-comp-cat')) {
+            const row = e.target.closest('.composition-row');
+            if (!row) return;
+            const subSel = row.querySelector('[data-comp-sub]');
+            if (!subSel) return;
+            const parentId = e.target.value;
+            if (parentId) {
+                fillSubcategorySelect(subSel, parentId);
+            } else {
+                subSel.innerHTML = '<option value="">— Subcategoría —</option>';
+                subSel.disabled = true;
+            }
+        }
+    });
+
+    // ── Summary: Clone table ──────────────────────────────────────────────
+    const addSummaryTableBtn = document.getElementById('addSummaryTableBtn');
+    const summaryTablesContainer = document.getElementById('summaryTablesContainer');
+
+    const SUMMARY_ROWS = ['BONO VACA', 'DOBLE', 'NAVIDAD', 'BONO VACA'];
+
+    function buildEditableSummaryTable() {
+        let tableCount = summaryTablesContainer ? summaryTablesContainer.querySelectorAll('.summary-table-card').length + 1 : 2;
+        const section = document.createElement('section');
+        section.className = 'card summary-table-card';
+        section.style.marginTop = '1.25rem';
+
+        const headerDiv = document.createElement('div');
+        headerDiv.className = 'card-header-flex';
+
+        const titleEl = document.createElement('h2');
+        titleEl.className = 'card-title';
+        titleEl.contentEditable = 'true';
+        titleEl.style.cssText = 'outline:none; border-bottom: 1px dashed var(--border-color); min-width:80px;';
+        titleEl.textContent = `Year-End Summary ${tableCount}`;
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'btn btn-secondary btn-sm';
+        removeBtn.style.cssText = 'color:var(--color-danger); border-color:var(--color-danger-bg);';
+        removeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Eliminar`;
+        removeBtn.addEventListener('click', () => section.remove());
+
+        headerDiv.appendChild(titleEl);
+        headerDiv.appendChild(removeBtn);
+        section.appendChild(headerDiv);
+
+        const table = document.createElement('table');
+        table.className = 'summary-table';
+        table.innerHTML = `
+            <thead>
+                <tr>
+                    <th>Category</th>
+                    <th>Monto $</th>
+                    <th>DESTINO</th>
+                </tr>
+            </thead>
+        `;
+
+        const tbody = document.createElement('tbody');
+        SUMMARY_ROWS.forEach(rowName => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = `
+                <td style="color:var(--color-text-muted);">${rowName}</td>
+                <td><input type="text" class="summary-editable-input" placeholder="$0.00" inputmode="decimal"></td>
+                <td><input type="text" class="summary-editable-input" placeholder="destino..."></td>
+            `;
+            tbody.appendChild(tr);
+        });
+
+        // Total row
+        const totalTr = document.createElement('tr');
+        totalTr.className = 'summary-row-total';
+        totalTr.innerHTML = `
+            <td>TOTAL</td>
+            <td><input type="text" class="summary-editable-input" placeholder="$0.00" inputmode="decimal"></td>
+            <td></td>
+        `;
+        tbody.appendChild(totalTr);
+
+        table.appendChild(tbody);
+        section.appendChild(table);
+        return section;
+    }
+
+    if (addSummaryTableBtn && summaryTablesContainer) {
+        addSummaryTableBtn.addEventListener('click', () => {
+            const newTable = buildEditableSummaryTable();
+            summaryTablesContainer.appendChild(newTable);
+            newTable.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        });
+    }
+
     // Initialize layout
     init();
+    populateCompositionDropdowns();
 });
 

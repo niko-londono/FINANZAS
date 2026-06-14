@@ -36,6 +36,12 @@
                         Summary
                     </a>
                 </li>
+                <li class="sidebar-item" data-tab="tarjetas">
+                    <a href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+                        Tarjetas
+                    </a>
+                </li>
                 <li class="sidebar-item" data-tab="settings">
                     <a href="#">
                         <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
@@ -145,60 +151,7 @@
 
             <!-- Right Column / Summary Widgets -->
             <div class="right-column">
-                
-                <!-- Monthly Summary Card -->
-                <section class="card">
-                    <div class="card-header-flex">
-                        <h2 class="card-title">Monthly Summary</h2>
-                    </div>
-
-                    <div style="margin-bottom: 1.25rem;">
-                        <h3 class="card-title" style="font-size: 0.95rem; font-weight: 500; color: var(--color-text-muted);">Monthly Detalle</h3>
-                    </div>
-
-                    <div class="transaction-list">
-                        <!-- Trans 1 -->
-                        <div class="transaction-item">
-                            <div class="transaction-left">
-                                <span class="badge salida">salida</span>
-                                <button class="badge pendiente-toggle" data-done="false">PENDIENTE</button>
-                                <span class="trans-desc">QIK</span>
-                            </div>
-                            <span class="trans-amount">$8,429.50</span>
-                        </div>
-
-                        <!-- Trans 2 -->
-                        <div class="transaction-item">
-                            <div class="transaction-left">
-                                <span class="badge entrada">entrada</span>
-                                <button class="badge pendiente-toggle" data-done="false">PENDIENTE</button>
-                                <span class="trans-desc">GASTOS M P2 C</span>
-                            </div>
-                            <span class="trans-amount">$12,000.00</span>
-                        </div>
-
-                        <!-- Trans 3 -->
-                        <div class="transaction-item">
-                            <div class="transaction-left">
-                                <span class="badge salida">salida</span>
-                                <button class="badge pendiente-toggle" data-done="false">PENDIENTE</button>
-                                <span class="trans-desc">APAP</span>
-                            </div>
-                            <span class="trans-amount">$28,165.50</span>
-                        </div>
-
-                        <!-- Trans 4 -->
-                        <div class="transaction-item">
-                            <div class="transaction-left">
-                                <span class="badge entrada">entrada</span>
-                                <button class="badge pendiente-toggle" data-done="false">PENDIENTE</button>
-                                <span class="trans-desc">GASTOS M P1 C</span>
-                            </div>
-                            <span class="trans-amount">$35,000.00</span>
-                        </div>
-                    </div>
-                </section>
-
+                <!-- (empty - Monthly Summary moved to Tarjetas tab) -->
             </div>
         </main>
 
@@ -209,50 +162,199 @@
                     <h1 class="dashboard-title">Summary</h1>
                     <span class="dashboard-subtitle">Year-End Overview</span>
                 </header>
-                <section class="card">
-                    <div class="card-header-flex">
-                        <h2 class="card-title">Year-End Summary</h2>
-                        <div class="card-options">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
+
+                <div id="summaryTablesContainer">
+                    <section class="card summary-table-card">
+                        <div class="card-header-flex">
+                            <h2 class="card-title">Year-End Summary</h2>
+                            <div class="card-options">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
+                            </div>
+                        </div>
+                        <table class="summary-table">
+                            <thead>
+                                <tr>
+                                    <th>Category</th>
+                                    <th>Monto $</th>
+                                    <th>DESTINO</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td>BONO VACA</td>
+                                    <td><span class="pill-amount">$34,990.00</span></td>
+                                    <td><span class="pill-destination">GASTOS PENDIENTES</span></td>
+                                </tr>
+                                <tr>
+                                    <td>DOBLE</td>
+                                    <td><span class="pill-amount">$91,567.00</span></td>
+                                    <td><span class="pill-destination">bolsa</span></td>
+                                </tr>
+                                <tr>
+                                    <td>NAVIDAD</td>
+                                    <td><span class="pill-amount">$128,820.00</span></td>
+                                    <td><span class="pill-destination">deuda carro</span></td>
+                                </tr>
+                                <tr>
+                                    <td>BONO VACA</td>
+                                    <td><span class="pill-amount">$34,908.00</span></td>
+                                    <td><span class="pill-destination">AHORRADO</span></td>
+                                </tr>
+                                <tr class="summary-row-total">
+                                    <td>TOTAL</td>
+                                    <td><span class="pill-amount">$348,385.00</span></td>
+                                    <td></td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </section>
+                </div>
+
+                <div style="margin-top: 1rem; display: flex; justify-content: flex-start;">
+                    <button class="btn btn-secondary" id="addSummaryTableBtn" style="display:inline-flex; align-items:center; gap:0.4rem; font-weight:600;">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                        Agregar otra tabla
+                    </button>
+                </div>
+
+            </div>
+        </div>
+
+        <!-- Tarjetas Tab Page (hidden by default) -->
+        <div class="tab-page" id="tarjetasPage" style="display:none;">
+            <div class="main-column" style="max-width: 700px;">
+                <header class="dashboard-header">
+                    <h1 class="dashboard-title">Pago de tarjetas</h1>
+                    <span class="dashboard-subtitle">Monthly Summary</span>
+                </header>
+
+                <div class="tarjetas-list">
+
+                    <!-- QIK -->
+                    <div class="tarjeta-card">
+                        <div class="tarjeta-top">
+                            <div class="tarjeta-meta">
+                                <span class="badge salida">salida</span>
+                                <span class="tarjeta-desc">QIK</span>
+                            </div>
+                            <span class="tarjeta-amount">$8,429.50</span>
+                        </div>
+                        <div class="tarjeta-bottom">
+                            <button class="status-toggle" data-done="false">
+                                <span class="status-dot"></span>
+                                <span class="status-label">PENDIENTE</span>
+                            </button>
+                        </div>
+                        <div class="tarjeta-composition">
+                            <div class="composition-header">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+                                Composición
+                            </div>
+                            <div class="composition-row">
+                                <select class="comp-select" data-comp-cat>
+                                    <option value="">— Categoría —</option>
+                                </select>
+                                <select class="comp-select" data-comp-sub disabled>
+                                    <option value="">— Subcategoría —</option>
+                                </select>
+                            </div>
                         </div>
                     </div>
-                    <table class="summary-table">
-                        <thead>
-                            <tr>
-                                <th>Diciembre 2026<br><span style="font-size: 0.75rem; color: var(--color-text-muted);">Category</span></th>
-                                <th>Diciembre 2025<br><span style="font-size: 0.75rem; color: var(--color-text-muted);">$</span></th>
-                                <th><br><span style="font-size: 0.75rem; color: var(--color-text-muted);">DESTINO</span></th>
-                            </tr>
-                        </thead>
-                        <tbody>
-                            <tr>
-                                <td>BONO VACA</td>
-                                <td><span class="pill-amount">$34,990.00</span></td>
-                                <td><span class="pill-destination">GASTOS PENDIENTES</span></td>
-                            </tr>
-                            <tr>
-                                <td>DOBLE</td>
-                                <td><span class="pill-amount">$91,567.00</span></td>
-                                <td><span class="pill-destination">bolsa</span></td>
-                            </tr>
-                            <tr>
-                                <td>NAVIDAD</td>
-                                <td><span class="pill-amount">$128,820.00</span></td>
-                                <td><span class="pill-destination">deuda carro</span></td>
-                            </tr>
-                            <tr>
-                                <td>BONO VACA</td>
-                                <td><span class="pill-amount">$34,908.00</span></td>
-                                <td><span class="pill-destination">AHORRADO</span></td>
-                            </tr>
-                            <tr class="summary-row-total">
-                                <td>TOTAL</td>
-                                <td><span class="pill-amount">$348,385.00</span></td>
-                                <td></td>
-                            </tr>
-                        </tbody>
-                    </table>
-                </section>
+
+                    <!-- GASTOS M parte 2 -->
+                    <div class="tarjeta-card">
+                        <div class="tarjeta-top">
+                            <div class="tarjeta-meta">
+                                <span class="badge entrada">entrada</span>
+                                <span class="tarjeta-desc">GASTOS M parte 2 a Cuenta Corriente popular</span>
+                            </div>
+                            <span class="tarjeta-amount">$12,000.00</span>
+                        </div>
+                        <div class="tarjeta-bottom">
+                            <button class="status-toggle" data-done="false">
+                                <span class="status-dot"></span>
+                                <span class="status-label">PENDIENTE</span>
+                            </button>
+                        </div>
+                        <div class="tarjeta-composition">
+                            <div class="composition-header">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+                                Composición
+                            </div>
+                            <div class="composition-row">
+                                <select class="comp-select" data-comp-cat>
+                                    <option value="">— Categoría —</option>
+                                </select>
+                                <select class="comp-select" data-comp-sub disabled>
+                                    <option value="">— Subcategoría —</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- APAP -->
+                    <div class="tarjeta-card">
+                        <div class="tarjeta-top">
+                            <div class="tarjeta-meta">
+                                <span class="badge salida">salida</span>
+                                <span class="tarjeta-desc">APAP</span>
+                            </div>
+                            <span class="tarjeta-amount">$28,165.50</span>
+                        </div>
+                        <div class="tarjeta-bottom">
+                            <button class="status-toggle" data-done="false">
+                                <span class="status-dot"></span>
+                                <span class="status-label">PENDIENTE</span>
+                            </button>
+                        </div>
+                        <div class="tarjeta-composition">
+                            <div class="composition-header">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+                                Composición
+                            </div>
+                            <div class="composition-row">
+                                <select class="comp-select" data-comp-cat>
+                                    <option value="">— Categoría —</option>
+                                </select>
+                                <select class="comp-select" data-comp-sub disabled>
+                                    <option value="">— Subcategoría —</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- GASTOS M parte 1 -->
+                    <div class="tarjeta-card">
+                        <div class="tarjeta-top">
+                            <div class="tarjeta-meta">
+                                <span class="badge entrada">entrada</span>
+                                <span class="tarjeta-desc">GASTOS M parte 1 a Cuenta Corriente popular</span>
+                            </div>
+                            <span class="tarjeta-amount">$35,000.00</span>
+                        </div>
+                        <div class="tarjeta-bottom">
+                            <button class="status-toggle" data-done="false">
+                                <span class="status-dot"></span>
+                                <span class="status-label">PENDIENTE</span>
+                            </button>
+                        </div>
+                        <div class="tarjeta-composition">
+                            <div class="composition-header">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+                                Composición
+                            </div>
+                            <div class="composition-row">
+                                <select class="comp-select" data-comp-cat>
+                                    <option value="">— Categoría —</option>
+                                </select>
+                                <select class="comp-select" data-comp-sub disabled>
+                                    <option value="">— Subcategoría —</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                </div>
             </div>
         </div>
     </div>
@@ -266,6 +368,10 @@
         <div class="bottom-nav-item" data-tab="summary">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
             <span>Summary</span>
+        </div>
+        <div class="bottom-nav-item" data-tab="tarjetas">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
+            <span>Tarjetas</span>
         </div>
         <div class="bottom-nav-item" data-tab="settings">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
