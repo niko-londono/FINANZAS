@@ -20,23 +20,44 @@ document.addEventListener('DOMContentLoaded', () => {
     const sidebarItems = document.querySelectorAll('.sidebar-item');
     const bottomNavItems = document.querySelectorAll('.bottom-nav-item');
 
+    const mainLayout = document.querySelector('.dashboard-layout');
+    const summaryPage = document.getElementById('summaryPage');
+
     function setActiveTab(tabName) {
         sidebarItems.forEach(i => {
-            if (i.getAttribute('data-tab') === tabName) {
-                i.classList.add('active');
-            } else {
-                i.classList.remove('active');
-            }
+            i.classList.toggle('active', i.getAttribute('data-tab') === tabName);
         });
         bottomNavItems.forEach(i => {
-            if (i.getAttribute('data-tab') === tabName) {
-                i.classList.add('active');
-            } else {
-                i.classList.remove('active');
-            }
+            i.classList.toggle('active', i.getAttribute('data-tab') === tabName);
         });
+
+        if (tabName === 'summary') {
+            if (mainLayout) mainLayout.style.display = 'none';
+            if (summaryPage) summaryPage.style.display = '';
+        } else {
+            if (mainLayout) mainLayout.style.display = '';
+            if (summaryPage) summaryPage.style.display = 'none';
+        }
         console.log(`Navigating to tab: ${tabName}`);
     }
+
+    // Pendiente/Done toggle for Monthly Summary
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.pendiente-toggle');
+        if (!btn) return;
+        const isDone = btn.getAttribute('data-done') === 'true';
+        if (isDone) {
+            btn.setAttribute('data-done', 'false');
+            btn.textContent = 'PENDIENTE';
+            btn.classList.remove('done');
+            btn.classList.add('pendiente');
+        } else {
+            btn.setAttribute('data-done', 'true');
+            btn.textContent = 'DONE';
+            btn.classList.remove('pendiente');
+            btn.classList.add('done');
+        }
+    });
 
     sidebarItems.forEach(item => {
         item.addEventListener('click', (e) => {
@@ -393,17 +414,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function updateMetrics() {
         const sueldoCat = categories.find(c => c.id === 'sueldo');
-        const totalIncome = sueldoCat ? sueldoCat.budgeted : 0;
+        // Total income = budgeted value of Sueldo (or sum of its children if it has any)
+        const sueldoIsParent = categories.some(c => c.parentId === 'sueldo');
+        const totalIncome = sueldoCat ? (sueldoIsParent ? getChildrenSum('sueldo') : (sueldoCat.budgeted || 0)) : 0;
         
         const otherCategories = categories.filter(c => c.id !== 'sueldo' && c.parentId === null);
         const totalExpenses = otherCategories.reduce((sum, cat) => sum + (cat.budgeted || 0), 0);
         
         const balance = totalIncome - totalExpenses;
         
-        // Update metric values in DOM
-        const totalIncomeInput = document.getElementById('totalIncomeInput');
-        if (totalIncomeInput && document.activeElement !== totalIncomeInput) {
-            totalIncomeInput.value = formatCurrency(totalIncome);
+        // Update Total Income display (read-only)
+        const totalIncomeVal = document.getElementById('totalIncomeVal');
+        if (totalIncomeVal) {
+            totalIncomeVal.textContent = `$${formatCurrency(totalIncome)}`;
         }
         
         const totalExpensesVal = document.getElementById('totalExpensesVal');
@@ -449,7 +472,8 @@ document.addEventListener('DOMContentLoaded', () => {
         
         // 2. Update Sueldo Cuadre row
         const sueldoCat = categories.find(c => c.id === 'sueldo');
-        const totalIncome = sueldoCat ? sueldoCat.budgeted : 0;
+        const sueldoIsParent = categories.some(c => c.parentId === 'sueldo');
+        const totalIncome = sueldoCat ? (sueldoIsParent ? getChildrenSum('sueldo') : (sueldoCat.budgeted || 0)) : 0;
         
         const otherCategories = categories.filter(c => c.id !== 'sueldo' && c.parentId === null);
         const budgetedExpenses = otherCategories.reduce((sum, cat) => sum + (cat.budgeted || 0), 0);
@@ -478,13 +502,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
         }
         
-        // 3. Update the input in the Sueldo row in case they edited it from the top input
-        const sueldoRowInput = document.querySelector('[data-input-id="sueldo"]');
-        if (sueldoRowInput && document.activeElement !== sueldoRowInput) {
-            sueldoRowInput.value = formatCurrency(totalIncome);
-        }
-        
-        // 4. Update top metrics
+        // 3. Update top metrics
         updateMetrics();
     }
 
@@ -542,7 +560,6 @@ document.addEventListener('DOMContentLoaded', () => {
         categories = categories.filter(c => c.id !== id);
     }
 
-    // ===== Budget input focus/blur for formatted numbers =====
     document.addEventListener('focus', (e) => {
         // Budget inputs in table: strip formatting on focus
         if (e.target.classList.contains('budget-input')) {
@@ -551,11 +568,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cat) {
                 e.target.value = cat.budgeted || 0;
             }
-        }
-        // Total Income input: strip formatting on focus
-        if (e.target.id === 'totalIncomeInput') {
-            const sueldoCat = categories.find(c => c.id === 'sueldo');
-            e.target.value = sueldoCat ? sueldoCat.budgeted : 0;
         }
     }, true);
 
@@ -567,17 +579,6 @@ document.addEventListener('DOMContentLoaded', () => {
             const cat = categories.find(c => c.id === id);
             if (cat) {
                 cat.budgeted = val;
-                e.target.value = formatCurrency(val);
-                saveCategories();
-                updateCalculationsInline();
-            }
-        }
-        // Total Income input: parse, save, re-format on blur
-        if (e.target.id === 'totalIncomeInput') {
-            const val = parseCurrency(e.target.value);
-            const sueldoCat = categories.find(c => c.id === 'sueldo');
-            if (sueldoCat) {
-                sueldoCat.budgeted = val;
                 e.target.value = formatCurrency(val);
                 saveCategories();
                 updateCalculationsInline();
@@ -606,16 +607,6 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cat) {
                 cat.budgeted = val;
                 // Don't save to GAS on every keystroke, but update calculations live
-                localStorage.setItem('budget_categories', JSON.stringify(categories));
-                updateCalculationsInline();
-            }
-        }
-        
-        if (e.target.id === 'totalIncomeInput') {
-            const val = parseCurrency(e.target.value);
-            const sueldoCat = categories.find(c => c.id === 'sueldo');
-            if (sueldoCat) {
-                sueldoCat.budgeted = val;
                 localStorage.setItem('budget_categories', JSON.stringify(categories));
                 updateCalculationsInline();
             }
@@ -668,7 +659,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populateParentSelect() {
         if (!newCatParentSelect) return;
-        const possibleParents = categories.filter(c => c.parentId === null && c.id !== 'sueldo');
+        const possibleParents = categories.filter(c => c.parentId === null);
         
         let optionsHTML = '<option value="">Ninguna (Nivel Superior)</option>';
         possibleParents.forEach(parent => {
