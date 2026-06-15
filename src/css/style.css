@@ -551,6 +551,98 @@ body {
 .summary-editable-input::placeholder {
     color: var(--color-text-light);
 }
+/* ── Distribución layout: full-width responsive grid ─────────────────── */
+.dist-layout {
+    width: 100%;
+    padding: 2rem;
+    box-sizing: border-box;
+}
+
+.dist-grid {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.1rem;
+}
+
+@media (max-width: 900px) {
+    .dist-grid { grid-template-columns: 1fr; }
+    .dist-layout { padding: 1rem; }
+}
+
+.dist-card {
+    display: flex;
+    flex-direction: column;
+}
+
+/* Composición inside card */
+.dist-card .tarjeta-composition {
+    flex: 1;
+}
+
+.comp-rows-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.45rem;
+    margin-bottom: 0.5rem;
+}
+
+/* Remove-row × button */
+.composition-row {
+    display: flex;
+    gap: 0.5rem;
+    align-items: center;
+    flex-wrap: nowrap;
+}
+
+.comp-remove-row {
+    flex-shrink: 0;
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: var(--color-text-light);
+    font-size: 1rem;
+    line-height: 1;
+    cursor: pointer;
+    border-radius: 4px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, background 0.15s;
+}
+.comp-remove-row:hover {
+    color: var(--color-danger);
+    background: var(--color-danger-bg);
+}
+/* Hide × when only one row */
+.comp-rows-container:has(.composition-row:only-child) .comp-remove-row {
+    opacity: 0;
+    pointer-events: none;
+}
+
+/* Add category button */
+.comp-add-row-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    border: 1px dashed var(--border-color);
+    border-radius: 7px;
+    padding: 0.3rem 0.7rem;
+    font-family: inherit;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    background: transparent;
+    cursor: pointer;
+    transition: border-color 0.2s, color 0.2s, background 0.2s;
+    margin-top: 0.1rem;
+}
+.comp-add-row-btn:hover {
+    border-color: var(--color-primary);
+    color: var(--color-primary);
+    background: rgba(20, 184, 166, 0.05);
+}
+
 /* ── Tarjetas Tab: TC Table ──────────────────────────────────────────── */
 .tc-table-wrapper {
     overflow-x: auto;
@@ -755,6 +847,11 @@ body {
     flex: 1;
     overflow-y: auto;
     padding: 2rem;
+}
+
+/* Distribución tab gets no outer padding — dist-layout handles it */
+#distribucionPage.tab-page {
+    padding: 0;
 }
 
 .collapsed-row {

@@ -803,6 +803,11 @@ document.addEventListener('DOMContentLoaded', () => {
             subSel.disabled = true;
         } else {
             subSel.disabled = false;
+            // "Todas" option first
+            const todaOpt = document.createElement('option');
+            todaOpt.value = '__todas__';
+            todaOpt.textContent = 'Todas';
+            subSel.appendChild(todaOpt);
             children.forEach(child => {
                 const opt = document.createElement('option');
                 opt.value = child.id;
@@ -811,6 +816,61 @@ document.addEventListener('DOMContentLoaded', () => {
             });
         }
     }
+
+    // Build a fresh composition row with populated cat select
+    function buildCompRow() {
+        const row = document.createElement('div');
+        row.className = 'composition-row';
+
+        const catSel = document.createElement('select');
+        catSel.className = 'comp-select';
+        catSel.setAttribute('data-comp-cat', '');
+        catSel.innerHTML = '<option value="">— Categoría —</option>';
+        const topLevel = categories.filter(c => c.parentId === null);
+        topLevel.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat.id;
+            opt.textContent = cat.name;
+            catSel.appendChild(opt);
+        });
+
+        const subSel = document.createElement('select');
+        subSel.className = 'comp-select';
+        subSel.setAttribute('data-comp-sub', '');
+        subSel.disabled = true;
+        subSel.innerHTML = '<option value="">— Subcategoría —</option>';
+
+        const removeBtn = document.createElement('button');
+        removeBtn.className = 'comp-remove-row';
+        removeBtn.title = 'Eliminar fila';
+        removeBtn.textContent = '×';
+
+        row.appendChild(catSel);
+        row.appendChild(subSel);
+        row.appendChild(removeBtn);
+        return row;
+    }
+
+    // Delegate: add-category row button
+    document.addEventListener('click', (e) => {
+        const addBtn = e.target.closest('.comp-add-row-btn');
+        if (addBtn) {
+            const container = addBtn.previousElementSibling; // .comp-rows-container
+            if (container && container.classList.contains('comp-rows-container')) {
+                container.appendChild(buildCompRow());
+            }
+        }
+
+        // Remove a composition row
+        const removeBtn = e.target.closest('.comp-remove-row');
+        if (removeBtn) {
+            const row = removeBtn.closest('.composition-row');
+            const container = row && row.closest('.comp-rows-container');
+            if (container && container.querySelectorAll('.composition-row').length > 1) {
+                row.remove();
+            }
+        }
+    });
 
     // Delegate category select change → populate subcategory
     document.addEventListener('change', (e) => {

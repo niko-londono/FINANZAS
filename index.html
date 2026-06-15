@@ -228,16 +228,16 @@
 
         <!-- Distribución Tab Page (hidden by default) -->
         <div class="tab-page" id="distribucionPage" style="display:none;">
-            <div class="main-column" style="max-width: 700px;">
+            <div class="dist-layout">
                 <header class="dashboard-header">
                     <h1 class="dashboard-title">Distribución</h1>
                     <span class="dashboard-subtitle">Monthly Summary</span>
                 </header>
 
-                <div class="tarjetas-list">
+                <div class="dist-grid">
 
                     <!-- QIK -->
-                    <div class="tarjeta-card">
+                    <div class="tarjeta-card dist-card">
                         <div class="tarjeta-top">
                             <div class="tarjeta-meta">
                                 <span class="badge salida">salida</span>
@@ -251,10 +251,27 @@
                                 <span class="status-label">PENDIENTE</span>
                             </button>
                         </div>
+                        <div class="tarjeta-composition">
+                            <div class="composition-header">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+                                Composición
+                            </div>
+                            <div class="comp-rows-container">
+                                <div class="composition-row">
+                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
+                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                    <button class="comp-remove-row" title="Eliminar fila">×</button>
+                                </div>
+                            </div>
+                            <button class="comp-add-row-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                Agregar categoría
+                            </button>
+                        </div>
                     </div>
 
                     <!-- GASTOS M parte 2 -->
-                    <div class="tarjeta-card">
+                    <div class="tarjeta-card dist-card">
                         <div class="tarjeta-top">
                             <div class="tarjeta-meta">
                                 <span class="badge entrada">entrada</span>
@@ -268,10 +285,27 @@
                                 <span class="status-label">PENDIENTE</span>
                             </button>
                         </div>
+                        <div class="tarjeta-composition">
+                            <div class="composition-header">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+                                Composición
+                            </div>
+                            <div class="comp-rows-container">
+                                <div class="composition-row">
+                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
+                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                    <button class="comp-remove-row" title="Eliminar fila">×</button>
+                                </div>
+                            </div>
+                            <button class="comp-add-row-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                Agregar categoría
+                            </button>
+                        </div>
                     </div>
 
                     <!-- APAP -->
-                    <div class="tarjeta-card">
+                    <div class="tarjeta-card dist-card">
                         <div class="tarjeta-top">
                             <div class="tarjeta-meta">
                                 <span class="badge salida">salida</span>
@@ -285,10 +319,27 @@
                                 <span class="status-label">PENDIENTE</span>
                             </button>
                         </div>
+                        <div class="tarjeta-composition">
+                            <div class="composition-header">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+                                Composición
+                            </div>
+                            <div class="comp-rows-container">
+                                <div class="composition-row">
+                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
+                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                    <button class="comp-remove-row" title="Eliminar fila">×</button>
+                                </div>
+                            </div>
+                            <button class="comp-add-row-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                Agregar categoría
+                            </button>
+                        </div>
                     </div>
 
                     <!-- GASTOS M parte 1 -->
-                    <div class="tarjeta-card">
+                    <div class="tarjeta-card dist-card">
                         <div class="tarjeta-top">
                             <div class="tarjeta-meta">
                                 <span class="badge entrada">entrada</span>
@@ -302,55 +353,26 @@
                                 <span class="status-label">PENDIENTE</span>
                             </button>
                         </div>
+                        <div class="tarjeta-composition">
+                            <div class="composition-header">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
+                                Composición
+                            </div>
+                            <div class="comp-rows-container">
+                                <div class="composition-row">
+                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
+                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                    <button class="comp-remove-row" title="Eliminar fila">×</button>
+                                </div>
+                            </div>
+                            <button class="comp-add-row-btn">
+                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                                Agregar categoría
+                            </button>
+                        </div>
                     </div>
 
                 </div>
-
-                <!-- Composición por card -->
-                <section class="card" style="margin-top: 1.25rem;">
-                    <div class="card-header-flex">
-                        <div class="composition-header" style="margin: 0;">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
-                            Composición por categoría
-                        </div>
-                    </div>
-                    <div class="comp-cards-grid">
-
-                        <div class="comp-card">
-                            <div class="comp-card-title">QIK</div>
-                            <div class="composition-row">
-                                <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
-                                <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
-                            </div>
-                        </div>
-
-                        <div class="comp-card">
-                            <div class="comp-card-title">GASTOS M P2</div>
-                            <div class="composition-row">
-                                <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
-                                <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
-                            </div>
-                        </div>
-
-                        <div class="comp-card">
-                            <div class="comp-card-title">APAP</div>
-                            <div class="composition-row">
-                                <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
-                                <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
-                            </div>
-                        </div>
-
-                        <div class="comp-card">
-                            <div class="comp-card-title">GASTOS M P1</div>
-                            <div class="composition-row">
-                                <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
-                                <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
-                            </div>
-                        </div>
-
-                    </div>
-                </section>
-
             </div>
         </div>
         <div class="tab-page" id="tarjetasPage" style="display:none;">
