@@ -102,19 +102,30 @@ document.addEventListener('DOMContentLoaded', () => {
         { id: 'casa-inversion', name: 'Casa(inversion)', budgeted: 0, parentId: null, canDelete: true }
     ];
 
-    let categories = JSON.parse(localStorage.getItem('budget_categories')) || DEFAULT_CATEGORIES;
-    let collapsedCategories = new Set(JSON.parse(localStorage.getItem('collapsed_categories')) || []);
+    // Safe localStorage wrapper — prevents storage errors (privacy mode, file://, etc.)
+    // from halting the entire script execution.
+    const safeStorage = {
+        get(key) {
+            try { return localStorage.getItem(key); } catch (e) { console.warn('localStorage.getItem failed:', e); return null; }
+        },
+        set(key, value) {
+            try { localStorage.setItem(key, value); } catch (e) { console.warn('localStorage.setItem failed:', e); }
+        }
+    };
+
+    let categories = JSON.parse(safeStorage.get('budget_categories')) || DEFAULT_CATEGORIES;
+    let collapsedCategories = new Set(JSON.parse(safeStorage.get('collapsed_categories')) || []);
     const tbody = document.getElementById('budgetTableBody');
 
     // Google Apps Script integration state
-    let gasApiUrl = localStorage.getItem('gas_api_url');
+    let gasApiUrl = safeStorage.get('gas_api_url');
     if (gasApiUrl === null) {
         gasApiUrl = 'https://script.google.com/macros/s/AKfycbzkqT6M_wM2b8ZTAua5O-DvS6nOs5MeKy-9qdUcNBWrJVh8si8VyVE2fUl6YSWomPnRCw/exec';
-        localStorage.setItem('gas_api_url', gasApiUrl);
+        safeStorage.set('gas_api_url', gasApiUrl);
     }
 
     function saveCategories() {
-        localStorage.setItem('budget_categories', JSON.stringify(categories));
+        safeStorage.set('budget_categories', JSON.stringify(categories));
         saveToGAS();
     }
 
@@ -149,7 +160,7 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = await response.json();
             if (Array.isArray(data) && data.length > 0) {
                 categories = data;
-                localStorage.setItem('budget_categories', JSON.stringify(categories));
+                safeStorage.set('budget_categories', JSON.stringify(categories));
                 updateDbStatus('connected');
                 
                 // Re-render table and metrics inline
@@ -556,7 +567,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     } else {
                         collapsedCategories.add(id);
                     }
-                    localStorage.setItem('collapsed_categories', JSON.stringify(Array.from(collapsedCategories)));
+                    safeStorage.set('collapsed_categories', JSON.stringify(Array.from(collapsedCategories)));
                     tbody.innerHTML = generateTableRowsHTML();
                 }
             }
@@ -629,7 +640,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cat) {
                 cat.budgeted = val;
                 // Don't save to GAS on every keystroke, but update calculations live
-                localStorage.setItem('budget_categories', JSON.stringify(categories));
+                safeStorage.set('budget_categories', JSON.stringify(categories));
                 updateCalculationsInline();
             }
         }
@@ -759,7 +770,7 @@ document.addEventListener('DOMContentLoaded', () => {
             
             const newUrl = gasUrlInput.value.trim();
             gasApiUrl = newUrl;
-            localStorage.setItem('gas_api_url', newUrl);
+            safeStorage.set('gas_api_url', newUrl);
             
             hideDbModal();
             
