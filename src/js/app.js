@@ -117,6 +117,42 @@ document.addEventListener('DOMContentLoaded', () => {
     let collapsedCategories = new Set(JSON.parse(safeStorage.get('collapsed_categories')) || []);
     const tbody = document.getElementById('budgetTableBody');
 
+    // ── Extended app data: Summary tables, Distribución composition, Tarjetas notas/status ──
+    const DEFAULT_SUMMARY_ROWS = [
+        { category: 'BONO VACA', amount: 34990, destino: 'GASTOS PENDIENTES' },
+        { category: 'DOBLE', amount: 91567, destino: 'bolsa' },
+        { category: 'NAVIDAD', amount: 128820, destino: 'deuda carro' },
+        { category: 'BONO VACA', amount: 34908, destino: 'AHORRADO' },
+    ];
+
+    const DEFAULT_APP_EXTRA = {
+        summaryTables: [
+            { id: 'summary-main', title: 'Year-End Summary', editable: false, rows: DEFAULT_SUMMARY_ROWS }
+        ],
+        distribucion: {
+            qik:        [{ catId: '', subId: '', amount: 0 }],
+            'gastos-m-p2': [{ catId: '', subId: '', amount: 0 }],
+            apap:       [{ catId: '', subId: '', amount: 0 }],
+            'gastos-m-p1': [{ catId: '', subId: '', amount: 0 }],
+        },
+        tarjetas: {
+            'tc-contigo':  { usdDone: false, dopDone: false, nota: '' },
+            'tc-jetblue':  { usdDone: false, dopDone: false, nota: '' },
+            'tc-apap':     { usdDone: false, dopDone: false, nota: '' },
+        }
+    };
+
+    let appExtra = JSON.parse(safeStorage.get('app_extra_data')) || JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA));
+    // Fill in any missing keys (in case of partial old data)
+    if (!appExtra.summaryTables) appExtra.summaryTables = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.summaryTables));
+    if (!appExtra.distribucion) appExtra.distribucion = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.distribucion));
+    if (!appExtra.tarjetas) appExtra.tarjetas = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.tarjetas));
+
+    function saveAppExtra() {
+        safeStorage.set('app_extra_data', JSON.stringify(appExtra));
+        saveExtraToGAS();
+    }
+
     // Google Apps Script integration state
     let gasApiUrl = safeStorage.get('gas_api_url');
     if (gasApiUrl === null) {
@@ -158,16 +194,36 @@ document.addEventListener('DOMContentLoaded', () => {
             const response = await fetch(gasApiUrl);
             if (!response.ok) throw new Error('Response status ' + response.status);
             const data = await response.json();
-            if (Array.isArray(data) && data.length > 0) {
-                categories = data;
+
+            // Support both legacy format (array of categories) and new combined format
+            let loadedCategories = null;
+            let loadedExtra = null;
+            if (Array.isArray(data)) {
+                loadedCategories = data;
+            } else if (data && typeof data === 'object') {
+                if (Array.isArray(data.categories)) loadedCategories = data.categories;
+                if (data.extra && typeof data.extra === 'object') loadedExtra = data.extra;
+            }
+
+            if (loadedCategories && loadedCategories.length > 0) {
+                categories = loadedCategories;
                 safeStorage.set('budget_categories', JSON.stringify(categories));
+            }
+            if (loadedExtra) {
+                appExtra = loadedExtra;
+                safeStorage.set('app_extra_data', JSON.stringify(appExtra));
+            }
+
+            if (loadedCategories || loadedExtra) {
                 updateDbStatus('connected');
-                
                 // Re-render table and metrics inline
                 if (tbody) tbody.innerHTML = generateTableRowsHTML();
                 updateMetrics();
                 populateParentSelect();
                 populateCompositionDropdowns();
+                renderSummaryTablesFromData();
+                renderDistribucionFromData();
+                renderTarjetasFromData();
             } else {
                 updateDbStatus('connected');
                 saveToGAS(); // upload current localStorage defaults if cloud is empty
@@ -191,13 +247,22 @@ document.addEventListener('DOMContentLoaded', () => {
                 headers: {
                     'Content-Type': 'text/plain'
                 },
-                body: JSON.stringify(categories)
+                body: JSON.stringify({ categories: categories, extra: appExtra })
             });
             updateDbStatus('connected');
         } catch (err) {
             console.error('Failed to save to Apps Script:', err);
             updateDbStatus('error');
         }
+    }
+
+    // Save just the extra data (debounced lightly by reusing saveToGAS's combined payload)
+    let extraSaveTimeout = null;
+    function saveExtraToGAS() {
+        clearTimeout(extraSaveTimeout);
+        extraSaveTimeout = setTimeout(() => {
+            saveToGAS();
+        }, 400);
     }
 
     // Pastel color palette for top-level categories
@@ -780,76 +845,110 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // ── Tarjetas: populate Category / Subcategory dropdowns ──────────────
-    function populateCompositionDropdowns() {
-        const catSelects = document.querySelectorAll('[data-comp-cat]');
-        catSelects.forEach(catSel => {
-            const currentVal = catSel.value;
-            // Build top-level category options (exclude sueldo-cuadre)
-            const topLevel = categories.filter(c => c.parentId === null);
-            catSel.innerHTML = '<option value="">— Categoría —</option>';
-            topLevel.forEach(cat => {
-                const opt = document.createElement('option');
-                opt.value = cat.id;
-                opt.textContent = cat.name;
-                catSel.appendChild(opt);
-            });
-            catSel.value = currentVal;
+    // ══════════════════════════════════════════════════════════════════
+    // DISTRIBUCIÓN: Composición rows driven by appExtra.distribucion
+    // ══════════════════════════════════════════════════════════════════
 
-            // Populate the sibling subcategory select based on current value
-            const row = catSel.closest('.composition-row');
-            if (row) {
-                const subSel = row.querySelector('[data-comp-sub]');
-                if (subSel && currentVal) {
-                    fillSubcategorySelect(subSel, currentVal);
-                }
-            }
-        });
+    function getCategoryNameById(id) {
+        const cat = categories.find(c => c.id === id);
+        return cat ? cat.name : '';
     }
 
-    function fillSubcategorySelect(subSel, parentId) {
-        const children = categories.filter(c => c.parentId === parentId);
-        subSel.innerHTML = '<option value="">— Subcategoría —</option>';
+    function populateCatSelectOptions(selectEl, selectedValue) {
+        selectEl.innerHTML = '<option value="">— Categoría —</option>';
+        const topLevel = categories.filter(c => c.parentId === null);
+        topLevel.forEach(cat => {
+            const opt = document.createElement('option');
+            opt.value = cat.id;
+            opt.textContent = cat.name;
+            selectEl.appendChild(opt);
+        });
+        selectEl.value = selectedValue || '';
+    }
+
+    function populateSubSelectOptions(selectEl, parentId, selectedValue) {
+        const children = parentId ? categories.filter(c => c.parentId === parentId) : [];
+        selectEl.innerHTML = '<option value="">— Subcategoría —</option>';
         if (children.length === 0) {
-            subSel.disabled = true;
+            selectEl.disabled = true;
         } else {
-            subSel.disabled = false;
-            // "Todas" option first
+            selectEl.disabled = false;
             const todaOpt = document.createElement('option');
             todaOpt.value = '__todas__';
             todaOpt.textContent = 'Todas';
-            subSel.appendChild(todaOpt);
+            selectEl.appendChild(todaOpt);
             children.forEach(child => {
                 const opt = document.createElement('option');
                 opt.value = child.id;
                 opt.textContent = child.name;
-                subSel.appendChild(opt);
+                selectEl.appendChild(opt);
             });
         }
+        selectEl.value = selectedValue || '';
     }
 
-    // Build a fresh composition row with populated cat select
-    function buildCompRow() {
+    // Compute the dollar amount represented by a single composition row's
+    // selected category/subcategory (using the "budgeted" figures from Budget Overview)
+    function computeRowSuggestedAmount(catId, subId) {
+        if (!catId) return null;
+        if (!subId) {
+            const cat = categories.find(c => c.id === catId);
+            return cat ? (cat.budgeted || 0) : null;
+        }
+        if (subId === '__todas__') {
+            const children = categories.filter(c => c.parentId === catId);
+            return children.reduce((sum, c) => sum + (c.budgeted || 0), 0);
+        }
+        const sub = categories.find(c => c.id === subId);
+        return sub ? (sub.budgeted || 0) : null;
+    }
+
+    function formatMoney(val) {
+        const n = Number(val) || 0;
+        return '$' + n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    // Re-render every Distribución card's composition rows from appExtra.distribucion
+    function renderDistribucionFromData() {
+        const cards = document.querySelectorAll('.dist-card[data-dist-key]');
+        cards.forEach(card => {
+            const key = card.getAttribute('data-dist-key');
+            const rowsData = (appExtra.distribucion && appExtra.distribucion[key]) || [{ catId: '', subId: '', amount: 0 }];
+            const container = card.querySelector('.comp-rows-container');
+            if (!container) return;
+
+            container.innerHTML = '';
+            rowsData.forEach(rowData => {
+                container.appendChild(buildCompRow(rowData));
+            });
+
+            updateDistTotal(card);
+        });
+    }
+
+    // Build a single composition row element, optionally pre-filled with saved data
+    function buildCompRow(rowData) {
+        rowData = rowData || { catId: '', subId: '', amount: 0 };
         const row = document.createElement('div');
         row.className = 'composition-row';
 
         const catSel = document.createElement('select');
         catSel.className = 'comp-select';
         catSel.setAttribute('data-comp-cat', '');
-        catSel.innerHTML = '<option value="">— Categoría —</option>';
-        const topLevel = categories.filter(c => c.parentId === null);
-        topLevel.forEach(cat => {
-            const opt = document.createElement('option');
-            opt.value = cat.id;
-            opt.textContent = cat.name;
-            catSel.appendChild(opt);
-        });
+        populateCatSelectOptions(catSel, rowData.catId);
 
         const subSel = document.createElement('select');
         subSel.className = 'comp-select';
         subSel.setAttribute('data-comp-sub', '');
-        subSel.disabled = true;
-        subSel.innerHTML = '<option value="">— Subcategoría —</option>';
+        populateSubSelectOptions(subSel, rowData.catId, rowData.subId);
+
+        const amountInput = document.createElement('input');
+        amountInput.type = 'text';
+        amountInput.className = 'comp-amount-input';
+        amountInput.setAttribute('data-comp-amount', '');
+        amountInput.placeholder = '$0.00';
+        amountInput.inputMode = 'decimal';
+        amountInput.value = rowData.amount ? formatCurrency(rowData.amount) : '';
 
         const removeBtn = document.createElement('button');
         removeBtn.className = 'comp-remove-row';
@@ -858,17 +957,59 @@ document.addEventListener('DOMContentLoaded', () => {
 
         row.appendChild(catSel);
         row.appendChild(subSel);
+        row.appendChild(amountInput);
         row.appendChild(removeBtn);
         return row;
     }
 
-    // Delegate: add-category row button
+    // Read all rows currently in a dist-card and persist them to appExtra
+    function persistDistCard(card) {
+        const key = card.getAttribute('data-dist-key');
+        if (!key) return;
+        const rows = card.querySelectorAll('.composition-row');
+        const data = Array.from(rows).map(row => {
+            const catSel = row.querySelector('[data-comp-cat]');
+            const subSel = row.querySelector('[data-comp-sub]');
+            const amountInput = row.querySelector('[data-comp-amount]');
+            return {
+                catId: catSel ? catSel.value : '',
+                subId: subSel ? subSel.value : '',
+                amount: amountInput ? parseCurrency(amountInput.value) : 0
+            };
+        });
+        if (!appExtra.distribucion) appExtra.distribucion = {};
+        appExtra.distribucion[key] = data;
+        saveAppExtra();
+        updateDistTotal(card);
+    }
+
+    // Sum all row amounts in a dist-card and update the total display in the top-right
+    function updateDistTotal(card) {
+        const totalEl = card.querySelector('[data-dist-total]');
+        if (!totalEl) return;
+        const rows = card.querySelectorAll('.composition-row');
+        let total = 0;
+        rows.forEach(row => {
+            const amountInput = row.querySelector('[data-comp-amount]');
+            if (amountInput) total += parseCurrency(amountInput.value);
+        });
+        totalEl.textContent = formatMoney(total);
+    }
+
+    // Legacy wrapper kept for any other call sites
+    function populateCompositionDropdowns() {
+        renderDistribucionFromData();
+    }
+
+    // Delegate: add-category row button (Distribución)
     document.addEventListener('click', (e) => {
         const addBtn = e.target.closest('.comp-add-row-btn');
         if (addBtn) {
-            const container = addBtn.previousElementSibling; // .comp-rows-container
-            if (container && container.classList.contains('comp-rows-container')) {
+            const card = addBtn.closest('.dist-card');
+            const container = card ? card.querySelector('.comp-rows-container') : null;
+            if (container) {
                 container.appendChild(buildCompRow());
+                if (card) persistDistCard(card);
             }
         }
 
@@ -876,40 +1017,76 @@ document.addEventListener('DOMContentLoaded', () => {
         const removeBtn = e.target.closest('.comp-remove-row');
         if (removeBtn) {
             const row = removeBtn.closest('.composition-row');
+            const card = removeBtn.closest('.dist-card');
             const container = row && row.closest('.comp-rows-container');
             if (container && container.querySelectorAll('.composition-row').length > 1) {
                 row.remove();
+                if (card) persistDistCard(card);
             }
         }
     });
 
-    // Delegate category select change → populate subcategory
+    // Delegate category select change → populate subcategory + suggest amount, then persist
     document.addEventListener('change', (e) => {
         if (e.target.hasAttribute('data-comp-cat')) {
             const row = e.target.closest('.composition-row');
             if (!row) return;
             const subSel = row.querySelector('[data-comp-sub]');
-            if (!subSel) return;
+            const amountInput = row.querySelector('[data-comp-amount]');
             const parentId = e.target.value;
-            if (parentId) {
-                fillSubcategorySelect(subSel, parentId);
-            } else {
-                subSel.innerHTML = '<option value="">— Subcategoría —</option>';
-                subSel.disabled = true;
+            if (subSel) populateSubSelectOptions(subSel, parentId, '');
+            if (amountInput && parentId) {
+                const suggested = computeRowSuggestedAmount(parentId, '');
+                if (suggested !== null) amountInput.value = formatCurrency(suggested);
             }
+            const card = e.target.closest('.dist-card');
+            if (card) persistDistCard(card);
+        }
+        if (e.target.hasAttribute('data-comp-sub')) {
+            const row = e.target.closest('.composition-row');
+            if (!row) return;
+            const catSel = row.querySelector('[data-comp-cat]');
+            const amountInput = row.querySelector('[data-comp-amount]');
+            if (amountInput && catSel) {
+                const suggested = computeRowSuggestedAmount(catSel.value, e.target.value);
+                if (suggested !== null) amountInput.value = formatCurrency(suggested);
+            }
+            const card = e.target.closest('.dist-card');
+            if (card) persistDistCard(card);
         }
     });
 
-    // ── Summary: Clone table ──────────────────────────────────────────────
+    // Amount input: live total update + persist on blur
+    document.addEventListener('input', (e) => {
+        if (e.target.hasAttribute('data-comp-amount')) {
+            const card = e.target.closest('.dist-card');
+            if (card) updateDistTotal(card);
+        }
+    });
+    document.addEventListener('blur', (e) => {
+        if (e.target.hasAttribute('data-comp-amount')) {
+            e.target.value = e.target.value ? formatCurrency(parseCurrency(e.target.value)) : '';
+            const card = e.target.closest('.dist-card');
+            if (card) persistDistCard(card);
+        }
+    }, true);
+
+
+    // ══════════════════════════════════════════════════════════════════
+    // SUMMARY: tables driven by appExtra.summaryTables (persisted)
+    // ══════════════════════════════════════════════════════════════════
+
     const addSummaryTableBtn = document.getElementById('addSummaryTableBtn');
     const summaryTablesContainer = document.getElementById('summaryTablesContainer');
 
-    const SUMMARY_ROWS = ['BONO VACA', 'DOBLE', 'NAVIDAD', 'BONO VACA'];
+    function computeSummaryTotal(rows) {
+        return rows.reduce((sum, r) => sum + (Number(r.amount) || 0), 0);
+    }
 
-    function buildEditableSummaryTable() {
-        let tableCount = summaryTablesContainer ? summaryTablesContainer.querySelectorAll('.summary-table-card').length + 1 : 2;
+    function buildSummaryTableSection(tableData) {
         const section = document.createElement('section');
         section.className = 'card summary-table-card';
+        section.setAttribute('data-summary-id', tableData.id);
         section.style.marginTop = '1.25rem';
 
         const headerDiv = document.createElement('div');
@@ -917,18 +1094,35 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const titleEl = document.createElement('h2');
         titleEl.className = 'card-title';
-        titleEl.contentEditable = 'true';
-        titleEl.style.cssText = 'outline:none; border-bottom: 1px dashed var(--border-color); min-width:80px;';
-        titleEl.textContent = `Year-End Summary ${tableCount}`;
-
-        const removeBtn = document.createElement('button');
-        removeBtn.className = 'btn btn-secondary btn-sm';
-        removeBtn.style.cssText = 'color:var(--color-danger); border-color:var(--color-danger-bg);';
-        removeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Eliminar`;
-        removeBtn.addEventListener('click', () => section.remove());
-
+        titleEl.textContent = tableData.title;
+        if (tableData.editable) {
+            titleEl.contentEditable = 'true';
+            titleEl.style.cssText = 'outline:none; border-bottom: 1px dashed var(--border-color); min-width:80px;';
+            titleEl.addEventListener('blur', () => {
+                tableData.title = titleEl.textContent.trim() || tableData.title;
+                saveAppExtra();
+            });
+        }
         headerDiv.appendChild(titleEl);
-        headerDiv.appendChild(removeBtn);
+
+        if (tableData.editable) {
+            const removeBtn = document.createElement('button');
+            removeBtn.className = 'btn btn-secondary btn-sm';
+            removeBtn.style.cssText = 'color:var(--color-danger); border-color:var(--color-danger-bg);';
+            removeBtn.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg> Eliminar`;
+            removeBtn.addEventListener('click', () => {
+                appExtra.summaryTables = appExtra.summaryTables.filter(t => t.id !== tableData.id);
+                saveAppExtra();
+                section.remove();
+            });
+            headerDiv.appendChild(removeBtn);
+        } else {
+            const optionsDiv = document.createElement('div');
+            optionsDiv.className = 'card-options';
+            optionsDiv.innerHTML = `<svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>`;
+            headerDiv.appendChild(optionsDiv);
+        }
+
         section.appendChild(headerDiv);
 
         const table = document.createElement('table');
@@ -943,42 +1137,205 @@ document.addEventListener('DOMContentLoaded', () => {
             </thead>
         `;
 
-        const tbody = document.createElement('tbody');
-        SUMMARY_ROWS.forEach(rowName => {
+        const tbodyEl = document.createElement('tbody');
+
+        tableData.rows.forEach((rowData, idx) => {
             const tr = document.createElement('tr');
-            tr.innerHTML = `
-                <td style="color:var(--color-text-muted);">${rowName}</td>
-                <td><input type="text" class="summary-editable-input" placeholder="$0.00" inputmode="decimal"></td>
-                <td><input type="text" class="summary-editable-input" placeholder="destino..."></td>
-            `;
-            tbody.appendChild(tr);
+
+            const catTd = document.createElement('td');
+            if (tableData.editable) {
+                catTd.style.color = 'var(--color-text-muted)';
+                catTd.textContent = rowData.category;
+            } else {
+                catTd.textContent = rowData.category;
+            }
+            tr.appendChild(catTd);
+
+            const amountTd = document.createElement('td');
+            if (tableData.editable) {
+                const amountInput = document.createElement('input');
+                amountInput.type = 'text';
+                amountInput.className = 'summary-editable-input';
+                amountInput.placeholder = '$0.00';
+                amountInput.inputMode = 'decimal';
+                amountInput.value = rowData.amount ? formatCurrency(rowData.amount) : '';
+                amountInput.addEventListener('blur', () => {
+                    const val = parseCurrency(amountInput.value);
+                    rowData.amount = val;
+                    amountInput.value = val ? formatCurrency(val) : '';
+                    updateSummaryTableTotal(section, tableData);
+                    saveAppExtra();
+                });
+                amountTd.appendChild(amountInput);
+            } else {
+                const pill = document.createElement('span');
+                pill.className = 'pill-amount';
+                pill.textContent = formatMoney(rowData.amount);
+                amountTd.appendChild(pill);
+            }
+            tr.appendChild(amountTd);
+
+            const destTd = document.createElement('td');
+            if (tableData.editable) {
+                const destInput = document.createElement('input');
+                destInput.type = 'text';
+                destInput.className = 'summary-editable-input';
+                destInput.placeholder = 'destino...';
+                destInput.value = rowData.destino || '';
+                destInput.addEventListener('blur', () => {
+                    rowData.destino = destInput.value.trim();
+                    saveAppExtra();
+                });
+                destTd.appendChild(destInput);
+            } else {
+                const pill = document.createElement('span');
+                pill.className = 'pill-destination';
+                pill.textContent = rowData.destino || '';
+                destTd.appendChild(pill);
+            }
+            tr.appendChild(destTd);
+
+            tbodyEl.appendChild(tr);
         });
 
-        // Total row
+        // Total row — always read-only/calculated
         const totalTr = document.createElement('tr');
         totalTr.className = 'summary-row-total';
-        totalTr.innerHTML = `
-            <td>TOTAL</td>
-            <td><input type="text" class="summary-editable-input" placeholder="$0.00" inputmode="decimal"></td>
-            <td></td>
-        `;
-        tbody.appendChild(totalTr);
+        const totalCatTd = document.createElement('td');
+        totalCatTd.textContent = 'TOTAL';
+        totalTr.appendChild(totalCatTd);
 
-        table.appendChild(tbody);
+        const totalAmountTd = document.createElement('td');
+        const totalPill = document.createElement('span');
+        totalPill.className = 'pill-amount';
+        totalPill.setAttribute('data-summary-total', '');
+        totalPill.textContent = formatMoney(computeSummaryTotal(tableData.rows));
+        totalAmountTd.appendChild(totalPill);
+        totalTr.appendChild(totalAmountTd);
+
+        totalTr.appendChild(document.createElement('td'));
+        tbodyEl.appendChild(totalTr);
+
+        table.appendChild(tbodyEl);
         section.appendChild(table);
         return section;
     }
 
-    if (addSummaryTableBtn && summaryTablesContainer) {
-        addSummaryTableBtn.addEventListener('click', () => {
-            const newTable = buildEditableSummaryTable();
-            summaryTablesContainer.appendChild(newTable);
-            newTable.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    function updateSummaryTableTotal(sectionEl, tableData) {
+        const totalEl = sectionEl.querySelector('[data-summary-total]');
+        if (totalEl) totalEl.textContent = formatMoney(computeSummaryTotal(tableData.rows));
+    }
+
+    function renderSummaryTablesFromData() {
+        if (!summaryTablesContainer) return;
+        summaryTablesContainer.innerHTML = '';
+        appExtra.summaryTables.forEach(tableData => {
+            summaryTablesContainer.appendChild(buildSummaryTableSection(tableData));
         });
     }
 
-    // Initialize layout
+    if (addSummaryTableBtn) {
+        addSummaryTableBtn.addEventListener('click', () => {
+            const newId = 'summary-' + Date.now();
+            const tableCount = appExtra.summaryTables.length + 1;
+            // Clone the row structure (categories/destinos) from the original table,
+            // but with editable amounts/destinos, per spec: only the category labels carry over.
+            const baseRows = (appExtra.summaryTables[0] && appExtra.summaryTables[0].rows) || DEFAULT_SUMMARY_ROWS;
+            const newTableData = {
+                id: newId,
+                title: `Year-End Summary ${tableCount}`,
+                editable: true,
+                rows: baseRows.map(r => ({ category: r.category, amount: 0, destino: '' }))
+            };
+            appExtra.summaryTables.push(newTableData);
+            saveAppExtra();
+
+            const newSection = buildSummaryTableSection(newTableData);
+            summaryTablesContainer.appendChild(newSection);
+            if (typeof newSection.scrollIntoView === 'function') {
+                newSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
+        });
+    }
+
+
+    // ══════════════════════════════════════════════════════════════════
+    // TARJETAS: USD/DOP status toggles + notas, persisted via appExtra.tarjetas
+    // ══════════════════════════════════════════════════════════════════
+
+    function renderTarjetasFromData() {
+        const rows = document.querySelectorAll('.tc-row[data-card-key]');
+        rows.forEach(row => {
+            const key = row.getAttribute('data-card-key');
+            const cardData = (appExtra.tarjetas && appExtra.tarjetas[key]) || { usdDone: false, dopDone: false, nota: '' };
+
+            const usdBtn = row.querySelector('.status-toggle[data-currency="usd"]');
+            const dopBtn = row.querySelector('.status-toggle[data-currency="dop"]');
+            const notaInput = row.querySelector('[data-nota]');
+
+            if (usdBtn) applyStatusToggleState(usdBtn, !!cardData.usdDone);
+            if (dopBtn) applyStatusToggleState(dopBtn, !!cardData.dopDone);
+            if (notaInput) notaInput.value = cardData.nota || '';
+        });
+    }
+
+    function applyStatusToggleState(btn, isDone) {
+        btn.setAttribute('data-done', isDone ? 'true' : 'false');
+        const label = btn.querySelector('.status-label');
+        if (label) label.textContent = isDone ? 'DONE' : 'PENDIENTE';
+    }
+
+    function persistTarjetaRow(row) {
+        const key = row.getAttribute('data-card-key');
+        if (!key) return;
+        const usdBtn = row.querySelector('.status-toggle[data-currency="usd"]');
+        const dopBtn = row.querySelector('.status-toggle[data-currency="dop"]');
+        const notaInput = row.querySelector('[data-nota]');
+
+        if (!appExtra.tarjetas) appExtra.tarjetas = {};
+        appExtra.tarjetas[key] = {
+            usdDone: usdBtn ? usdBtn.getAttribute('data-done') === 'true' : false,
+            dopDone: dopBtn ? dopBtn.getAttribute('data-done') === 'true' : false,
+            nota: notaInput ? notaInput.value : ''
+        };
+        saveAppExtra();
+    }
+
+    // Nota input: persist on blur (and live debounce while typing)
+    let notaSaveTimeout = null;
+    document.addEventListener('input', (e) => {
+        if (e.target.hasAttribute('data-nota')) {
+            clearTimeout(notaSaveTimeout);
+            notaSaveTimeout = setTimeout(() => {
+                const row = e.target.closest('.tc-row');
+                if (row) persistTarjetaRow(row);
+            }, 500);
+        }
+    });
+    document.addEventListener('blur', (e) => {
+        if (e.target.hasAttribute('data-nota')) {
+            const row = e.target.closest('.tc-row');
+            if (row) persistTarjetaRow(row);
+        }
+    }, true);
+
+    // Status toggle persistence (Distribución/Tarjetas .status-toggle clicks already
+    // flip the visual state via the listener above; here we additionally persist
+    // Tarjetas-specific toggles to appExtra.tarjetas)
+    document.addEventListener('click', (e) => {
+        const btn = e.target.closest('.status-toggle[data-currency]');
+        if (!btn) return;
+        // Let the generic toggle listener flip visuals first, then persist on next tick
+        setTimeout(() => {
+            const row = btn.closest('.tc-row');
+            if (row) persistTarjetaRow(row);
+        }, 0);
+    });
+
+    // Initial render of all persisted sections
     init();
     populateCompositionDropdowns();
+    renderSummaryTablesFromData();
+    renderTarjetasFromData();
 });
 

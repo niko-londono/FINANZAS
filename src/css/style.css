@@ -545,6 +545,47 @@ body {
     background-color: #f8fafc;
 }
 
+.comp-amount-input {
+    flex: 0 0 100px;
+    min-width: 0;
+    padding: 0.45rem 0.55rem;
+    border: 1px solid var(--border-color);
+    border-radius: 7px;
+    font-family: inherit;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-text);
+    background: #ffffff;
+    text-align: right;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+.comp-amount-input::placeholder {
+    color: var(--color-text-light);
+    font-weight: 400;
+}
+.comp-amount-input:hover {
+    border-color: #cbd5e1;
+}
+.comp-amount-input:focus {
+    outline: none;
+    border-color: var(--color-info);
+    box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
+}
+
+@media (max-width: 540px) {
+    .composition-row {
+        flex-wrap: wrap;
+    }
+    .comp-amount-input {
+        flex: 1 1 100%;
+        order: 3;
+        text-align: left;
+    }
+    .comp-remove-row {
+        order: 4;
+    }
+}
+
 /* ── Summary: Editable clone table inputs ────────────────────────────── */
 .summary-editable-input {
     width: 100%;

@@ -165,50 +165,7 @@
                 </header>
 
                 <div id="summaryTablesContainer">
-                    <section class="card summary-table-card">
-                        <div class="card-header-flex">
-                            <h2 class="card-title">Year-End Summary</h2>
-                            <div class="card-options">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
-                            </div>
-                        </div>
-                        <table class="summary-table">
-                            <thead>
-                                <tr>
-                                    <th>Category</th>
-                                    <th>Monto $</th>
-                                    <th>DESTINO</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr>
-                                    <td>BONO VACA</td>
-                                    <td><span class="pill-amount">$34,990.00</span></td>
-                                    <td><span class="pill-destination">GASTOS PENDIENTES</span></td>
-                                </tr>
-                                <tr>
-                                    <td>DOBLE</td>
-                                    <td><span class="pill-amount">$91,567.00</span></td>
-                                    <td><span class="pill-destination">bolsa</span></td>
-                                </tr>
-                                <tr>
-                                    <td>NAVIDAD</td>
-                                    <td><span class="pill-amount">$128,820.00</span></td>
-                                    <td><span class="pill-destination">deuda carro</span></td>
-                                </tr>
-                                <tr>
-                                    <td>BONO VACA</td>
-                                    <td><span class="pill-amount">$34,908.00</span></td>
-                                    <td><span class="pill-destination">AHORRADO</span></td>
-                                </tr>
-                                <tr class="summary-row-total">
-                                    <td>TOTAL</td>
-                                    <td><span class="pill-amount">$348,385.00</span></td>
-                                    <td></td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </section>
+                    <!-- Tables are rendered dynamically by renderSummaryTablesFromData() -->
                 </div>
 
                 <div style="margin-top: 1rem; display: flex; justify-content: flex-start;">
@@ -232,13 +189,13 @@
                 <div class="dist-grid">
 
                     <!-- QIK -->
-                    <div class="tarjeta-card dist-card">
+                    <div class="tarjeta-card dist-card" data-dist-key="qik">
                         <div class="tarjeta-top">
                             <div class="tarjeta-meta">
                                 <span class="badge salida">salida</span>
                                 <span class="tarjeta-desc">QIK</span>
                             </div>
-                            <span class="tarjeta-amount">$8,429.50</span>
+                            <span class="tarjeta-amount" data-dist-total>$8,429.50</span>
                         </div>
                         <div class="tarjeta-bottom">
                             <button class="status-toggle" data-done="false">
@@ -255,6 +212,7 @@
                                 <div class="composition-row">
                                     <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
                                     <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                    <input type="text" class="comp-amount-input" data-comp-amount placeholder="$0.00" inputmode="decimal">
                                     <button class="comp-remove-row" title="Eliminar fila">×</button>
                                 </div>
                             </div>
@@ -266,13 +224,13 @@
                     </div>
 
                     <!-- GASTOS M parte 2 -->
-                    <div class="tarjeta-card dist-card">
+                    <div class="tarjeta-card dist-card" data-dist-key="gastos-m-p2">
                         <div class="tarjeta-top">
                             <div class="tarjeta-meta">
                                 <span class="badge entrada">entrada</span>
                                 <span class="tarjeta-desc">GASTOS M parte 2 a Cuenta Corriente popular</span>
                             </div>
-                            <span class="tarjeta-amount">$12,000.00</span>
+                            <span class="tarjeta-amount" data-dist-total>$12,000.00</span>
                         </div>
                         <div class="tarjeta-bottom">
                             <button class="status-toggle" data-done="false">
@@ -289,6 +247,7 @@
                                 <div class="composition-row">
                                     <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
                                     <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                    <input type="text" class="comp-amount-input" data-comp-amount placeholder="$0.00" inputmode="decimal">
                                     <button class="comp-remove-row" title="Eliminar fila">×</button>
                                 </div>
                             </div>
@@ -300,13 +259,13 @@
                     </div>
 
                     <!-- APAP -->
-                    <div class="tarjeta-card dist-card">
+                    <div class="tarjeta-card dist-card" data-dist-key="apap">
                         <div class="tarjeta-top">
                             <div class="tarjeta-meta">
                                 <span class="badge salida">salida</span>
                                 <span class="tarjeta-desc">APAP</span>
                             </div>
-                            <span class="tarjeta-amount">$28,165.50</span>
+                            <span class="tarjeta-amount" data-dist-total>$28,165.50</span>
                         </div>
                         <div class="tarjeta-bottom">
                             <button class="status-toggle" data-done="false">
@@ -323,6 +282,7 @@
                                 <div class="composition-row">
                                     <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
                                     <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                    <input type="text" class="comp-amount-input" data-comp-amount placeholder="$0.00" inputmode="decimal">
                                     <button class="comp-remove-row" title="Eliminar fila">×</button>
                                 </div>
                             </div>
@@ -334,13 +294,13 @@
                     </div>
 
                     <!-- GASTOS M parte 1 -->
-                    <div class="tarjeta-card dist-card">
+                    <div class="tarjeta-card dist-card" data-dist-key="gastos-m-p1">
                         <div class="tarjeta-top">
                             <div class="tarjeta-meta">
                                 <span class="badge entrada">entrada</span>
                                 <span class="tarjeta-desc">GASTOS M parte 1 a Cuenta Corriente popular</span>
                             </div>
-                            <span class="tarjeta-amount">$35,000.00</span>
+                            <span class="tarjeta-amount" data-dist-total>$35,000.00</span>
                         </div>
                         <div class="tarjeta-bottom">
                             <button class="status-toggle" data-done="false">
@@ -357,6 +317,7 @@
                                 <div class="composition-row">
                                     <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
                                     <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
+                                    <input type="text" class="comp-amount-input" data-comp-amount placeholder="$0.00" inputmode="decimal">
                                     <button class="comp-remove-row" title="Eliminar fila">×</button>
                                 </div>
                             </div>
@@ -392,58 +353,58 @@
                                 </tr>
                             </thead>
                             <tbody>
-                                <tr class="tc-row">
+                                <tr class="tc-row" data-card-key="tc-contigo">
                                     <td class="tc-name">TC CONTIGO</td>
                                     <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false">
+                                        <button class="status-toggle" data-done="false" data-currency="usd">
                                             <span class="status-dot"></span>
                                             <span class="status-label">PENDIENTE</span>
                                         </button>
                                     </td>
                                     <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false">
+                                        <button class="status-toggle" data-done="false" data-currency="dop">
                                             <span class="status-dot"></span>
                                             <span class="status-label">PENDIENTE</span>
                                         </button>
                                     </td>
                                     <td class="tc-nota-cell">
-                                        <input type="text" class="tc-nota-input" placeholder="Agregar nota...">
+                                        <input type="text" class="tc-nota-input" data-nota placeholder="Agregar nota...">
                                     </td>
                                 </tr>
-                                <tr class="tc-row">
+                                <tr class="tc-row" data-card-key="tc-jetblue">
                                     <td class="tc-name">TC JET BLUE</td>
                                     <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false">
+                                        <button class="status-toggle" data-done="false" data-currency="usd">
                                             <span class="status-dot"></span>
                                             <span class="status-label">PENDIENTE</span>
                                         </button>
                                     </td>
                                     <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false">
+                                        <button class="status-toggle" data-done="false" data-currency="dop">
                                             <span class="status-dot"></span>
                                             <span class="status-label">PENDIENTE</span>
                                         </button>
                                     </td>
                                     <td class="tc-nota-cell">
-                                        <input type="text" class="tc-nota-input" placeholder="Agregar nota...">
+                                        <input type="text" class="tc-nota-input" data-nota placeholder="Agregar nota...">
                                     </td>
                                 </tr>
-                                <tr class="tc-row">
+                                <tr class="tc-row" data-card-key="tc-apap">
                                     <td class="tc-name">TC APAP</td>
                                     <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false">
+                                        <button class="status-toggle" data-done="false" data-currency="usd">
                                             <span class="status-dot"></span>
                                             <span class="status-label">PENDIENTE</span>
                                         </button>
                                     </td>
                                     <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false">
+                                        <button class="status-toggle" data-done="false" data-currency="dop">
                                             <span class="status-dot"></span>
                                             <span class="status-label">PENDIENTE</span>
                                         </button>
                                     </td>
                                     <td class="tc-nota-cell">
-                                        <input type="text" class="tc-nota-input" placeholder="Agregar nota...">
+                                        <input type="text" class="tc-nota-input" data-nota placeholder="Agregar nota...">
                                     </td>
                                 </tr>
                             </tbody>
