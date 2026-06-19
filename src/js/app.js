@@ -73,6 +73,10 @@ document.addEventListener('DOMContentLoaded', () => {
                 btn.querySelector('.status-label').textContent = 'DONE';
             }
         }
+
+        // Persist if this toggle belongs to a Distribución card
+        const distCard = btn.closest('.dist-card[data-dist-key]');
+        if (distCard) persistDistCardToggle(distCard);
     });
 
     sidebarItems.forEach(item => {
@@ -130,10 +134,10 @@ document.addEventListener('DOMContentLoaded', () => {
             { id: 'summary-main', title: 'Year-End Summary 2025', editable: false, rows: DEFAULT_SUMMARY_ROWS }
         ],
         distribucion: {
-            qik:        [{ catId: '', subId: '', amount: 0 }],
-            'gastos-m-p2': [{ catId: '', subId: '', amount: 0 }],
-            apap:       [{ catId: '', subId: '', amount: 0 }],
-            'gastos-m-p1': [{ catId: '', subId: '', amount: 0 }],
+            qik:           { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
+            'gastos-m-p2': { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
+            apap:          { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
+            'gastos-m-p1': { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
         },
         tarjetas: {
             'tc-contigo':  { usdDone: false, dopDone: false, nota: '' },
@@ -153,6 +157,19 @@ document.addEventListener('DOMContentLoaded', () => {
     const mainSummaryTable = appExtra.summaryTables.find(t => t.id === 'summary-main');
     if (mainSummaryTable && mainSummaryTable.title === 'Year-End Summary') {
         mainSummaryTable.title = 'Year-End Summary 2025';
+    }
+
+    // Migration: distribucion used to store plain arrays per key; now it's {pendingDone, rows}.
+    if (appExtra.distribucion) {
+        Object.keys(appExtra.distribucion).forEach(key => {
+            const val = appExtra.distribucion[key];
+            if (Array.isArray(val)) {
+                appExtra.distribucion[key] = { pendingDone: false, rows: val };
+            } else if (val && typeof val === 'object' && !Array.isArray(val.rows)) {
+                val.rows = val.rows || [{ catId: '', subId: '', amount: 0 }];
+                val.pendingDone = val.pendingDone || false;
+            }
+        });
     }
 
     function saveAppExtra() {
@@ -959,14 +976,26 @@ document.addEventListener('DOMContentLoaded', () => {
         const cards = document.querySelectorAll('.dist-card[data-dist-key]');
         cards.forEach(card => {
             const key = card.getAttribute('data-dist-key');
-            const rowsData = (appExtra.distribucion && appExtra.distribucion[key]) || [{ catId: '', subId: '', amount: 0 }];
-            const container = card.querySelector('.comp-rows-container');
-            if (!container) return;
+            const cardData = (appExtra.distribucion && appExtra.distribucion[key]) || { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] };
 
-            container.innerHTML = '';
-            rowsData.forEach(rowData => {
-                container.appendChild(buildCompRow(rowData));
-            });
+            // Restore composition rows
+            const container = card.querySelector('.comp-rows-container');
+            if (container) {
+                container.innerHTML = '';
+                const rowsData = cardData.rows || [{ catId: '', subId: '', amount: 0 }];
+                rowsData.forEach(rowData => {
+                    container.appendChild(buildCompRow(rowData));
+                });
+            }
+
+            // Restore Pendiente / Done toggle state
+            const toggleBtn = card.querySelector('.status-toggle');
+            if (toggleBtn) {
+                const isDone = !!cardData.pendingDone;
+                toggleBtn.setAttribute('data-done', isDone ? 'true' : 'false');
+                const label = toggleBtn.querySelector('.status-label');
+                if (label) label.textContent = isDone ? 'DONE' : 'PENDIENTE';
+            }
 
             updateDistTotal(card);
         });
@@ -1013,7 +1042,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const key = card.getAttribute('data-dist-key');
         if (!key) return;
         const rows = card.querySelectorAll('.composition-row');
-        const data = Array.from(rows).map(row => {
+        const rowsData = Array.from(rows).map(row => {
             const catSel = row.querySelector('[data-comp-cat]');
             const subSel = row.querySelector('[data-comp-sub]');
             const amountInput = row.querySelector('[data-comp-amount]');
@@ -1024,9 +1053,28 @@ document.addEventListener('DOMContentLoaded', () => {
             };
         });
         if (!appExtra.distribucion) appExtra.distribucion = {};
-        appExtra.distribucion[key] = data;
+        const existing = appExtra.distribucion[key] || {};
+        appExtra.distribucion[key] = {
+            pendingDone: existing.pendingDone || false,
+            rows: rowsData
+        };
         saveAppExtra();
         updateDistTotal(card);
+    }
+
+    // Persist just the toggle state for a dist-card
+    function persistDistCardToggle(card) {
+        const key = card.getAttribute('data-dist-key');
+        if (!key) return;
+        const toggleBtn = card.querySelector('.status-toggle');
+        const isDone = toggleBtn ? toggleBtn.getAttribute('data-done') === 'true' : false;
+        if (!appExtra.distribucion) appExtra.distribucion = {};
+        const existing = appExtra.distribucion[key] || { rows: [{ catId: '', subId: '', amount: 0 }] };
+        appExtra.distribucion[key] = {
+            pendingDone: isDone,
+            rows: existing.rows || [{ catId: '', subId: '', amount: 0 }]
+        };
+        saveAppExtra();
     }
 
     // Sum all row amounts in a dist-card and update the total display in the top-right
