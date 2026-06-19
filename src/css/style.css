@@ -1044,6 +1044,31 @@ body {
     color: #ffffff;
 }
 
+/* Editable pill variant — same pastel pill look, but with a transparent input inside */
+.pill-input-wrap {
+    padding: 0.25rem 0.6rem;
+    min-width: 90px;
+}
+.pill-input {
+    border: none;
+    background: transparent;
+    outline: none;
+    font-family: inherit;
+    font-size: inherit;
+    font-weight: inherit;
+    color: inherit;
+    text-align: inherit;
+    width: 100%;
+    min-width: 70px;
+}
+.pill-input::placeholder {
+    color: inherit;
+    opacity: 0.55;
+}
+.pill-input-wrap:focus-within {
+    box-shadow: 0 0 0 2px rgba(0, 0, 0, 0.12);
+}
+
 /* Responsiveness adjustments */
 
 /* Tablet breakpoint */

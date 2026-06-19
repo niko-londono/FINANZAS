@@ -127,7 +127,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     const DEFAULT_APP_EXTRA = {
         summaryTables: [
-            { id: 'summary-main', title: 'Year-End Summary', editable: false, rows: DEFAULT_SUMMARY_ROWS }
+            { id: 'summary-main', title: 'Year-End Summary 2025', editable: false, rows: DEFAULT_SUMMARY_ROWS }
         ],
         distribucion: {
             qik:        [{ catId: '', subId: '', amount: 0 }],
@@ -147,6 +147,13 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!appExtra.summaryTables) appExtra.summaryTables = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.summaryTables));
     if (!appExtra.distribucion) appExtra.distribucion = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.distribucion));
     if (!appExtra.tarjetas) appExtra.tarjetas = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.tarjetas));
+
+    // Migration: the original (non-editable) summary table used to default to the
+    // title "Year-End Summary" — rename it to "Year-End Summary 2025" if still default.
+    const mainSummaryTable = appExtra.summaryTables.find(t => t.id === 'summary-main');
+    if (mainSummaryTable && mainSummaryTable.title === 'Year-End Summary') {
+        mainSummaryTable.title = 'Year-End Summary 2025';
+    }
 
     function saveAppExtra() {
         safeStorage.set('app_extra_data', JSON.stringify(appExtra));
@@ -324,6 +331,34 @@ document.addEventListener('DOMContentLoaded', () => {
         return children.reduce((sum, child) => {
             return sum + (child.budgeted || 0);
         }, 0);
+    }
+
+    // Build virtual "Difference" subcategories for every parent category that has children.
+    // These represent (parent.budgeted - sum of children) and behave like a real subcategory
+    // so they can be selected in Distribución → Composición, but they are never written
+    // back into `categories` (they're purely derived/read-only).
+    function getVirtualCategories() {
+        const virtuals = [];
+        categories.forEach(cat => {
+            const hasChildren = categories.some(c => c.parentId === cat.id);
+            if (hasChildren) {
+                const childrenSum = getChildrenSum(cat.id);
+                const diff = (cat.budgeted || 0) - childrenSum;
+                virtuals.push({
+                    id: `${cat.id}-difference`,
+                    parentId: cat.id,
+                    name: 'Difference',
+                    budgeted: diff,
+                    isVirtual: true
+                });
+            }
+        });
+        return virtuals;
+    }
+
+    // categories + virtual Difference entries, used anywhere a full selectable list is needed
+    function getCategoriesWithVirtuals() {
+        return categories.concat(getVirtualCategories());
     }
 
     function renderCategoryRow(cat, depth) {
@@ -868,6 +903,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function populateSubSelectOptions(selectEl, parentId, selectedValue) {
         const children = parentId ? categories.filter(c => c.parentId === parentId) : [];
+        const hasDifference = parentId && children.length > 0; // only parents with real children have a Difference
         selectEl.innerHTML = '<option value="">— Subcategoría —</option>';
         if (children.length === 0) {
             selectEl.disabled = true;
@@ -883,6 +919,12 @@ document.addEventListener('DOMContentLoaded', () => {
                 opt.textContent = child.name;
                 selectEl.appendChild(opt);
             });
+            if (hasDifference) {
+                const diffOpt = document.createElement('option');
+                diffOpt.value = `${parentId}-difference`;
+                diffOpt.textContent = 'Difference';
+                selectEl.appendChild(diffOpt);
+            }
         }
         selectEl.value = selectedValue || '';
     }
@@ -898,6 +940,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (subId === '__todas__') {
             const children = categories.filter(c => c.parentId === catId);
             return children.reduce((sum, c) => sum + (c.budgeted || 0), 0);
+        }
+        if (subId === `${catId}-difference`) {
+            const cat = categories.find(c => c.id === catId);
+            return cat ? ((cat.budgeted || 0) - getChildrenSum(catId)) : null;
         }
         const sub = categories.find(c => c.id === subId);
         return sub ? (sub.budgeted || 0) : null;
@@ -1095,14 +1141,17 @@ document.addEventListener('DOMContentLoaded', () => {
         const titleEl = document.createElement('h2');
         titleEl.className = 'card-title';
         titleEl.textContent = tableData.title;
-        if (tableData.editable) {
-            titleEl.contentEditable = 'true';
-            titleEl.style.cssText = 'outline:none; border-bottom: 1px dashed var(--border-color); min-width:80px;';
-            titleEl.addEventListener('blur', () => {
-                tableData.title = titleEl.textContent.trim() || tableData.title;
-                saveAppExtra();
-            });
-        }
+        titleEl.contentEditable = 'true';
+        titleEl.style.cssText = 'outline:none; border-bottom: 1px dashed transparent; min-width:80px;';
+        titleEl.addEventListener('focus', () => {
+            titleEl.style.borderBottomColor = 'var(--border-color)';
+        });
+        titleEl.addEventListener('blur', () => {
+            tableData.title = titleEl.textContent.trim() || tableData.title;
+            titleEl.textContent = tableData.title;
+            titleEl.style.borderBottomColor = 'transparent';
+            saveAppExtra();
+        });
         headerDiv.appendChild(titleEl);
 
         if (tableData.editable) {
@@ -1153,9 +1202,11 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const amountTd = document.createElement('td');
             if (tableData.editable) {
+                const pillWrap = document.createElement('span');
+                pillWrap.className = 'pill-amount pill-input-wrap';
                 const amountInput = document.createElement('input');
                 amountInput.type = 'text';
-                amountInput.className = 'summary-editable-input';
+                amountInput.className = 'pill-input';
                 amountInput.placeholder = '$0.00';
                 amountInput.inputMode = 'decimal';
                 amountInput.value = rowData.amount ? formatCurrency(rowData.amount) : '';
@@ -1166,7 +1217,8 @@ document.addEventListener('DOMContentLoaded', () => {
                     updateSummaryTableTotal(section, tableData);
                     saveAppExtra();
                 });
-                amountTd.appendChild(amountInput);
+                pillWrap.appendChild(amountInput);
+                amountTd.appendChild(pillWrap);
             } else {
                 const pill = document.createElement('span');
                 pill.className = 'pill-amount';
@@ -1177,16 +1229,19 @@ document.addEventListener('DOMContentLoaded', () => {
 
             const destTd = document.createElement('td');
             if (tableData.editable) {
+                const pillWrap = document.createElement('span');
+                pillWrap.className = 'pill-destination pill-input-wrap';
                 const destInput = document.createElement('input');
                 destInput.type = 'text';
-                destInput.className = 'summary-editable-input';
+                destInput.className = 'pill-input';
                 destInput.placeholder = 'destino...';
                 destInput.value = rowData.destino || '';
                 destInput.addEventListener('blur', () => {
                     rowData.destino = destInput.value.trim();
                     saveAppExtra();
                 });
-                destTd.appendChild(destInput);
+                pillWrap.appendChild(destInput);
+                destTd.appendChild(pillWrap);
             } else {
                 const pill = document.createElement('span');
                 pill.className = 'pill-destination';
