@@ -24,11 +24,13 @@ document.addEventListener('DOMContentLoaded', () => {
     const summaryPage = document.getElementById('summaryPage');
     const distribucionPage = document.getElementById('distribucionPage');
     const tarjetasPage = document.getElementById('tarjetasPage');
+    const notesPage = document.getElementById('notesPage');
 
     const TAB_PAGES = {
         summary: summaryPage,
         distribucion: distribucionPage,
         tarjetas: tarjetasPage,
+        notes: notesPage,
     };
 
     function setActiveTab(tabName) {
@@ -129,6 +131,45 @@ document.addEventListener('DOMContentLoaded', () => {
         { category: 'BONO VACA', amount: 34908, destino: 'AHORRADO' },
     ];
 
+    const DEFAULT_NOTES = [
+        {
+            id: 'note-1',
+            tag: 'STRATEGY',
+            title: 'Q3 Investment Strategy - June 2026',
+            date: '18/06/2026',
+            content: 'Review portfolio performance.\nConsider increasing exposure to renewable energy sector.\nAnalyze emerging market trends and adjust bond allocation.',
+            notes: 'Met with advisor, suggested looking into green bonds.',
+            pinned: true
+        },
+        {
+            id: 'note-2',
+            tag: 'GOAL',
+            title: 'Vacation Planning - Europe',
+            date: '15/06/2026',
+            content: 'Budget: $8,000.\nAccommodations: Booked flights and hotels.\nActivities: Researching museums and tours.\nCurrency exchange rates are favorable.',
+            notes: '',
+            pinned: true
+        },
+        {
+            id: 'note-3',
+            tag: 'REMINDER',
+            title: 'Car Loan Strategy',
+            date: '10/06/2026',
+            content: 'Contact bank for refinancing options.\nCompare interest rates.\nCalculate potential savings.',
+            notes: 'Current rate: 5.5%.',
+            pinned: false
+        },
+        {
+            id: 'note-4',
+            tag: 'IDEA',
+            title: 'Side Hustle Income',
+            date: '05/06/2026',
+            content: 'Explore freelance opportunities.\nSet up online profile.\nResearch pricing and competition.',
+            notes: '',
+            pinned: false
+        }
+    ];
+
     const DEFAULT_APP_EXTRA = {
         summaryTables: [
             { id: 'summary-main', title: 'Year-End Summary 2025', editable: false, rows: DEFAULT_SUMMARY_ROWS }
@@ -140,10 +181,11 @@ document.addEventListener('DOMContentLoaded', () => {
             'gastos-m-p1': { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
         },
         tarjetas: {
-            'tc-contigo':  { usdDone: false, dopDone: false, nota: '' },
-            'tc-jetblue':  { usdDone: false, dopDone: false, nota: '' },
-            'tc-apap':     { usdDone: false, dopDone: false, nota: '' },
-        }
+            'tc-contigo':  { usdDone: false, dopDone: false },
+            'tc-jetblue':  { usdDone: false, dopDone: false },
+            'tc-apap':     { usdDone: false, dopDone: false },
+        },
+        notes: DEFAULT_NOTES
     };
 
     let appExtra = JSON.parse(safeStorage.get('app_extra_data')) || JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA));
@@ -151,6 +193,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (!appExtra.summaryTables) appExtra.summaryTables = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.summaryTables));
     if (!appExtra.distribucion) appExtra.distribucion = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.distribucion));
     if (!appExtra.tarjetas) appExtra.tarjetas = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.tarjetas));
+    if (!appExtra.notes) appExtra.notes = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.notes));
 
     // Migration: the original (non-editable) summary table used to default to the
     // title "Year-End Summary" — rename it to "Year-End Summary 2025" if still default.
@@ -248,6 +291,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 renderSummaryTablesFromData();
                 renderDistribucionFromData();
                 renderTarjetasFromData();
+                renderNotes();
+                renderTimeline();
             } else {
                 updateDbStatus('connected');
                 saveToGAS(); // upload current localStorage defaults if cloud is empty
@@ -663,6 +708,8 @@ document.addEventListener('DOMContentLoaded', () => {
         tbody.innerHTML = generateTableRowsHTML();
         updateMetrics();
         populateParentSelect();
+        renderNotes();
+        renderTimeline();
         
         if (!hasLoadedFromCloud) {
             hasLoadedFromCloud = true;
@@ -1060,6 +1107,7 @@ document.addEventListener('DOMContentLoaded', () => {
         };
         saveAppExtra();
         updateDistTotal(card);
+        renderTimeline();
     }
 
     // Persist just the toggle state for a dist-card
@@ -1370,15 +1418,13 @@ document.addEventListener('DOMContentLoaded', () => {
         const rows = document.querySelectorAll('.tc-row[data-card-key]');
         rows.forEach(row => {
             const key = row.getAttribute('data-card-key');
-            const cardData = (appExtra.tarjetas && appExtra.tarjetas[key]) || { usdDone: false, dopDone: false, nota: '' };
+            const cardData = (appExtra.tarjetas && appExtra.tarjetas[key]) || { usdDone: false, dopDone: false };
 
             const usdBtn = row.querySelector('.status-toggle[data-currency="usd"]');
             const dopBtn = row.querySelector('.status-toggle[data-currency="dop"]');
-            const notaInput = row.querySelector('[data-nota]');
 
             if (usdBtn) applyStatusToggleState(usdBtn, !!cardData.usdDone);
             if (dopBtn) applyStatusToggleState(dopBtn, !!cardData.dopDone);
-            if (notaInput) notaInput.value = cardData.nota || '';
         });
     }
 
@@ -1393,34 +1439,14 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!key) return;
         const usdBtn = row.querySelector('.status-toggle[data-currency="usd"]');
         const dopBtn = row.querySelector('.status-toggle[data-currency="dop"]');
-        const notaInput = row.querySelector('[data-nota]');
 
         if (!appExtra.tarjetas) appExtra.tarjetas = {};
         appExtra.tarjetas[key] = {
             usdDone: usdBtn ? usdBtn.getAttribute('data-done') === 'true' : false,
-            dopDone: dopBtn ? dopBtn.getAttribute('data-done') === 'true' : false,
-            nota: notaInput ? notaInput.value : ''
+            dopDone: dopBtn ? dopBtn.getAttribute('data-done') === 'true' : false
         };
         saveAppExtra();
     }
-
-    // Nota input: persist on blur (and live debounce while typing)
-    let notaSaveTimeout = null;
-    document.addEventListener('input', (e) => {
-        if (e.target.hasAttribute('data-nota')) {
-            clearTimeout(notaSaveTimeout);
-            notaSaveTimeout = setTimeout(() => {
-                const row = e.target.closest('.tc-row');
-                if (row) persistTarjetaRow(row);
-            }, 500);
-        }
-    });
-    document.addEventListener('blur', (e) => {
-        if (e.target.hasAttribute('data-nota')) {
-            const row = e.target.closest('.tc-row');
-            if (row) persistTarjetaRow(row);
-        }
-    }, true);
 
     // Status toggle persistence (Distribución/Tarjetas .status-toggle clicks already
     // flip the visual state via the listener above; here we additionally persist
@@ -1434,6 +1460,262 @@ document.addEventListener('DOMContentLoaded', () => {
             if (row) persistTarjetaRow(row);
         }, 0);
     });
+
+    // ══════════════════════════════════════════════════════════════════
+    // NOTES LAYOUT, RENDERING AND CRUD SYSTEM
+    // ══════════════════════════════════════════════════════════════════
+    const pinnedNotesGrid = document.getElementById('pinnedNotesGrid');
+    const recentNotesGrid = document.getElementById('recentNotesGrid');
+    const recentTransactionsTimeline = document.getElementById('recentTransactionsTimeline');
+    
+    const addNoteFabBtn = document.getElementById('addNoteFabBtn');
+    const noteModal = document.getElementById('noteModal');
+    const closeNoteModalBtn = document.getElementById('closeNoteModalBtn');
+    const cancelNoteModalBtn = document.getElementById('cancelNoteModalBtn');
+    const noteForm = document.getElementById('noteForm');
+    
+    const noteIdInput = document.getElementById('noteIdInput');
+    const noteTitleInput = document.getElementById('noteTitleInput');
+    const noteTagInput = document.getElementById('noteTagInput');
+    const noteDateInput = document.getElementById('noteDateInput');
+    const noteContentInput = document.getElementById('noteContentInput');
+    const noteDetailsInput = document.getElementById('noteDetailsInput');
+    const notePinnedInput = document.getElementById('notePinnedInput');
+    const noteModalTitle = document.getElementById('noteModalTitle');
+
+    function renderNotes() {
+        if (!pinnedNotesGrid || !recentNotesGrid) return;
+        
+        pinnedNotesGrid.innerHTML = '';
+        recentNotesGrid.innerHTML = '';
+        
+        const notes = appExtra.notes || [];
+        
+        const pinned = notes.filter(n => n.pinned);
+        const recent = notes.filter(n => !n.pinned);
+        
+        function parseDateStr(str) {
+            if (!str) return new Date(0);
+            const parts = str.split('/');
+            if (parts.length === 3) {
+                return new Date(parts[2], parts[1] - 1, parts[0]);
+            }
+            return new Date(str);
+        }
+        
+        pinned.sort((a, b) => parseDateStr(b.date) - parseDateStr(a.date));
+        recent.sort((a, b) => parseDateStr(b.date) - parseDateStr(a.date));
+        
+        if (pinned.length === 0) {
+            pinnedNotesGrid.innerHTML = '<div class="no-notes-msg" style="grid-column: span 2; color: var(--color-text-light); font-size: 0.875rem; font-style: italic; text-align: center; padding: 1.5rem 0;">No hay notas fijadas</div>';
+        } else {
+            pinned.forEach(note => {
+                pinnedNotesGrid.appendChild(createNoteCardEl(note));
+            });
+        }
+        
+        if (recent.length === 0) {
+            recentNotesGrid.innerHTML = '<div class="no-notes-msg" style="grid-column: span 2; color: var(--color-text-light); font-size: 0.875rem; font-style: italic; text-align: center; padding: 1.5rem 0;">No hay notas recientes</div>';
+        } else {
+            recent.forEach(note => {
+                recentNotesGrid.appendChild(createNoteCardEl(note));
+            });
+        }
+    }
+
+    function createNoteCardEl(note) {
+        const card = document.createElement('div');
+        card.className = `note-card ${note.pinned ? 'pinned-note' : ''}`;
+        card.setAttribute('data-note-id', note.id);
+        
+        const cleanContent = (note.content || '').replace(/\n/g, '<br>');
+        const detailsBoxHTML = note.notes ? `<div class="note-details-box"><strong>Notes:</strong> ${note.notes}</div>` : '';
+        
+        card.innerHTML = `
+            <div class="note-card-header">
+                <span class="note-tag tag-${note.tag.toLowerCase()}">${note.tag}</span>
+                <div class="note-actions">
+                    <button class="note-action-btn pin-toggle-btn" title="${note.pinned ? 'Desfijar' : 'Fijar'}">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${note.pinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
+                    </button>
+                    <button class="note-action-btn edit-note-btn" title="Editar">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path></svg>
+                    </button>
+                    <button class="note-action-btn delete-note-btn" title="Eliminar">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>
+                    </button>
+                </div>
+            </div>
+            <h3 class="note-title">${note.title || 'Sin Título'}</h3>
+            <span class="note-date">${note.date}</span>
+            <div class="note-content">${cleanContent}</div>
+            ${detailsBoxHTML}
+        `;
+        
+        card.querySelector('.pin-toggle-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            togglePinNote(note.id);
+        });
+        card.querySelector('.edit-note-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            openEditNoteModal(note);
+        });
+        card.querySelector('.delete-note-btn').addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteNote(note.id);
+        });
+        
+        return card;
+    }
+
+    function togglePinNote(noteId) {
+        const note = appExtra.notes.find(n => n.id === noteId);
+        if (note) {
+            note.pinned = !note.pinned;
+            saveAppExtra();
+            renderNotes();
+        }
+    }
+    
+    function deleteNote(noteId) {
+        if (confirm('¿Estás seguro de que deseas eliminar esta nota?')) {
+            appExtra.notes = appExtra.notes.filter(n => n.id !== noteId);
+            saveAppExtra();
+            renderNotes();
+        }
+    }
+    
+    function openAddNoteModal() {
+        noteModalTitle.textContent = 'Agregar Nota';
+        noteIdInput.value = '';
+        noteTitleInput.value = '';
+        noteTagInput.value = 'STRATEGY';
+        
+        const today = new Date();
+        const dd = String(today.getDate()).padStart(2, '0');
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const yyyy = today.getFullYear();
+        noteDateInput.value = `${dd}/${mm}/${yyyy}`;
+        
+        noteContentInput.value = '';
+        noteDetailsInput.value = '';
+        notePinnedInput.checked = false;
+        
+        noteModal.classList.add('active');
+        setTimeout(() => noteTitleInput.focus(), 50);
+    }
+    
+    function openEditNoteModal(note) {
+        noteModalTitle.textContent = 'Editar Nota';
+        noteIdInput.value = note.id;
+        noteTitleInput.value = note.title || '';
+        noteTagInput.value = note.tag || 'STRATEGY';
+        noteDateInput.value = note.date || '';
+        noteContentInput.value = note.content || '';
+        noteDetailsInput.value = note.notes || '';
+        notePinnedInput.checked = !!note.pinned;
+        
+        noteModal.classList.add('active');
+        setTimeout(() => noteTitleInput.focus(), 50);
+    }
+    
+    function hideNoteModal() {
+        noteModal.classList.remove('active');
+    }
+
+    if (addNoteFabBtn) addNoteFabBtn.addEventListener('click', openAddNoteModal);
+    if (closeNoteModalBtn) closeNoteModalBtn.addEventListener('click', hideNoteModal);
+    if (cancelNoteModalBtn) cancelNoteModalBtn.addEventListener('click', hideNoteModal);
+    
+    if (noteModal) {
+        noteModal.addEventListener('click', (e) => {
+            if (e.target === noteModal) hideNoteModal();
+        });
+    }
+    
+    if (noteForm) {
+        noteForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const id = noteIdInput.value || 'note-' + Date.now();
+            const title = noteTitleInput.value.trim();
+            const tag = noteTagInput.value;
+            const date = noteDateInput.value.trim();
+            const content = noteContentInput.value.trim();
+            const notesVal = noteDetailsInput.value.trim();
+            const pinned = notePinnedInput.checked;
+            
+            if (!title || !content || !date) return;
+            
+            const newNote = { id, tag, title, date, content, notes: notesVal, pinned };
+            
+            if (noteIdInput.value) {
+                const idx = appExtra.notes.findIndex(n => n.id === id);
+                if (idx !== -1) {
+                    appExtra.notes[idx] = newNote;
+                }
+            } else {
+                appExtra.notes.push(newNote);
+            }
+            
+            saveAppExtra();
+            renderNotes();
+            hideNoteModal();
+        });
+    }
+
+    function getDistribucionTotal(key) {
+        const distData = appExtra.distribucion && appExtra.distribucion[key];
+        if (!distData || !Array.isArray(distData.rows)) return 0;
+        return distData.rows.reduce((sum, row) => sum + (Number(row.amount) || 0), 0);
+    }
+
+    function renderTimeline() {
+        if (!recentTransactionsTimeline) return;
+        
+        const txs = [
+            { key: 'qik', label: 'QIK', date: '18/06/2026', color: 'orange', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>' },
+            { key: 'gastos-m-p2', label: 'GASTOS M', date: '18/06/2026', color: 'pink', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>' },
+            { key: 'apap', label: 'APAP', date: '17/06/2026', color: 'blue', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>' },
+            { key: 'gastos-m-p1', label: 'GASTOS M', date: '16/06/2026', color: 'pink', icon: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>' }
+        ];
+        
+        recentTransactionsTimeline.innerHTML = '';
+        
+        txs.forEach(tx => {
+            const totalAmount = getDistribucionTotal(tx.key);
+            const item = document.createElement('div');
+            item.className = 'timeline-item';
+            item.setAttribute('data-target-dist', tx.key);
+            item.innerHTML = `
+                <div class="timeline-dot-wrapper">
+                    <div class="timeline-dot ${tx.color}">${tx.icon}</div>
+                    <div class="timeline-line"></div>
+                </div>
+                <div class="timeline-content">
+                    <div class="timeline-meta">${tx.date} - ${tx.label}</div>
+                    <div class="timeline-amount">$${formatCurrency(totalAmount)}</div>
+                </div>
+            `;
+            
+            item.addEventListener('click', () => {
+                setActiveTab('distribucion');
+                const distCard = document.querySelector(`.dist-card[data-dist-key="${tx.key}"]`);
+                if (distCard) {
+                    setTimeout(() => {
+                        distCard.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        distCard.style.outline = '3px solid var(--color-info)';
+                        distCard.style.transition = 'outline 0.3s';
+                        setTimeout(() => {
+                            distCard.style.outline = 'none';
+                        }, 1500);
+                    }, 200);
+                }
+            });
+            
+            recentTransactionsTimeline.appendChild(item);
+        });
+    }
 
     // Initial render of all persisted sections
     init();

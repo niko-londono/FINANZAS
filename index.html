@@ -54,6 +54,12 @@
                         Settings
                     </a>
                 </li>
+                <li class="sidebar-item" data-tab="notes">
+                    <a href="#">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+                        Notes
+                    </a>
+                </li>
             </ul>
         </aside>
 
@@ -349,7 +355,6 @@
                                     <th class="tc-th-card">TARJETA C</th>
                                     <th class="tc-th-currency">USD</th>
                                     <th class="tc-th-currency">DOP</th>
-                                    <th class="tc-th-nota">NOTA</th>
                                 </tr>
                             </thead>
                             <tbody>
@@ -367,9 +372,6 @@
                                             <span class="status-label">PENDIENTE</span>
                                         </button>
                                     </td>
-                                    <td class="tc-nota-cell">
-                                        <input type="text" class="tc-nota-input" data-nota placeholder="Agregar nota...">
-                                    </td>
                                 </tr>
                                 <tr class="tc-row" data-card-key="tc-jetblue">
                                     <td class="tc-name">TC JET BLUE</td>
@@ -384,9 +386,6 @@
                                             <span class="status-dot"></span>
                                             <span class="status-label">PENDIENTE</span>
                                         </button>
-                                    </td>
-                                    <td class="tc-nota-cell">
-                                        <input type="text" class="tc-nota-input" data-nota placeholder="Agregar nota...">
                                     </td>
                                 </tr>
                                 <tr class="tc-row" data-card-key="tc-apap">
@@ -403,15 +402,53 @@
                                             <span class="status-label">PENDIENTE</span>
                                         </button>
                                     </td>
-                                    <td class="tc-nota-cell">
-                                        <input type="text" class="tc-nota-input" data-nota placeholder="Agregar nota...">
-                                    </td>
                                 </tr>
                             </tbody>
                         </table>
                     </div>
                 </section>
             </div>
+        </div>
+
+        <!-- Notes Tab Page (hidden by default) -->
+        <div class="tab-page" id="notesPage" style="display:none;">
+            <div class="notes-layout">
+                <div class="notes-main-content">
+                    <header class="dashboard-header">
+                        <h1 class="dashboard-title">Financial</h1>
+                        <span class="dashboard-subtitle">Financial Notes and Annotations Journal</span>
+                    </header>
+                    
+                    <!-- Pinned Notes Section -->
+                    <div class="notes-section">
+                        <h2 class="notes-section-title">Pinned Notes</h2>
+                        <div class="notes-grid" id="pinnedNotesGrid">
+                            <!-- Rendered dynamically via JS -->
+                        </div>
+                    </div>
+                    
+                    <!-- Recent Notes Section -->
+                    <div class="notes-section" style="margin-top: 2rem;">
+                        <h2 class="notes-section-title">Recent Notes</h2>
+                        <div class="notes-grid" id="recentNotesGrid">
+                            <!-- Rendered dynamically via JS -->
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="notes-sidebar-column">
+                    <h2 class="notes-section-title">Quick Links to Recent Transactions</h2>
+                    <div class="transaction-timeline" id="recentTransactionsTimeline">
+                        <!-- Rendered dynamically via JS -->
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Float Add Button -->
+            <button class="fab-btn" id="addNoteFabBtn" title="Agregar Nueva Nota">
+                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                <span>Add New Note</span>
+            </button>
         </div>
     </div>
 
@@ -436,6 +473,10 @@
         <div class="bottom-nav-item" data-tab="settings">
             <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
             <span>Settings</span>
+        </div>
+        <div class="bottom-nav-item" data-tab="notes">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+            <span>Notes</span>
         </div>
     </nav>
 
@@ -498,6 +539,58 @@
                 <div class="modal-footer">
                     <button type="button" class="btn btn-secondary" id="cancelDbModalBtn">Cancelar</button>
                     <button type="submit" class="btn btn-primary">Conectar y Guardar</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add/Edit Note Modal -->
+    <div class="modal-overlay" id="noteModal">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3 id="noteModalTitle">Agregar Nota</h3>
+                <button class="modal-close" id="closeNoteModalBtn" aria-label="Cerrar modal">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+                </button>
+            </div>
+            <form id="noteForm">
+                <input type="hidden" id="noteIdInput">
+                <div class="modal-body">
+                    <div class="form-group">
+                        <label for="noteTitleInput">Título</label>
+                        <input type="text" id="noteTitleInput" class="form-input" placeholder="Ej. Estrategia de Inversión" required autocomplete="off">
+                    </div>
+                    <div style="display: flex; gap: 1rem;">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="noteTagInput">Tag / Tipo</label>
+                            <select id="noteTagInput" class="form-input">
+                                <option value="STRATEGY">STRATEGY</option>
+                                <option value="GOAL">GOAL</option>
+                                <option value="REMINDER">REMINDER</option>
+                                <option value="IDEA">IDEA</option>
+                            </select>
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="noteDateInput">Fecha</label>
+                            <input type="text" id="noteDateInput" class="form-input" placeholder="DD/MM/YYYY" required autocomplete="off">
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="noteContentInput">Contenido</label>
+                        <textarea id="noteContentInput" class="form-input" placeholder="Escribe el contenido de la nota aquí..." rows="4" required style="resize: vertical; font-family: inherit; font-size: 0.9rem; padding: 0.5rem;"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="noteDetailsInput">Detalles adicionales / Notas (Opcional)</label>
+                        <input type="text" id="noteDetailsInput" class="form-input" placeholder="Ej. Reunión con asesor, tasa actual 5.5%..." autocomplete="off">
+                    </div>
+                    <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
+                        <input type="checkbox" id="notePinnedInput" style="width: 16px; height: 16px; cursor: pointer;">
+                        <label for="notePinnedInput" style="cursor: pointer; user-select: none; font-size: 0.8rem; font-weight: 600; color: var(--color-text-muted);">Fijar nota (Pinned)</label>
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" id="cancelNoteModalBtn">Cancelar</button>
+                    <button type="submit" class="btn btn-primary" id="saveNoteBtn">Guardar</button>
                 </div>
             </form>
         </div>
