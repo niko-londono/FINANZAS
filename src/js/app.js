@@ -216,9 +216,14 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveAppExtra() {
+        appExtra.lastSaved = Date.now();
         safeStorage.set('app_extra_data', JSON.stringify(appExtra));
         saveExtraToGAS();
     }
+
+    // Persist the initial state immediately so it's available after page reload
+    // even before GAS responds
+    safeStorage.set('app_extra_data', JSON.stringify(appExtra));
 
     // Google Apps Script integration state
     let gasApiUrl = safeStorage.get('gas_api_url');
@@ -277,8 +282,20 @@ document.addEventListener('DOMContentLoaded', () => {
                 safeStorage.set('budget_categories', JSON.stringify(categories));
             }
             if (loadedExtra) {
-                appExtra = loadedExtra;
+                // Only replace local appExtra with GAS version if GAS is newer
+                const localTimestamp = appExtra.lastSaved || 0;
+                const gasTimestamp = loadedExtra.lastSaved || 0;
+                if (gasTimestamp >= localTimestamp) {
+                    appExtra = loadedExtra;
+                }
+                // Sanitize: ensure all required keys exist after loading from GAS
+                if (!appExtra.summaryTables) appExtra.summaryTables = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.summaryTables));
+                if (!appExtra.distribucion)  appExtra.distribucion  = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.distribucion));
+                if (!appExtra.tarjetas)      appExtra.tarjetas      = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.tarjetas));
+                if (!appExtra.notes)         appExtra.notes         = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.notes));
                 safeStorage.set('app_extra_data', JSON.stringify(appExtra));
+                // If local was newer, push it up to GAS to re-sync
+                if (localTimestamp > gasTimestamp) saveToGAS();
             }
 
             if (loadedCategories || loadedExtra) {
@@ -1523,12 +1540,13 @@ document.addEventListener('DOMContentLoaded', () => {
         card.className = `note-card ${note.pinned ? 'pinned-note' : ''}`;
         card.setAttribute('data-note-id', note.id);
         
+        const tag = note.tag || 'STRATEGY';  // Defend against undefined tag
         const cleanContent = (note.content || '').replace(/\n/g, '<br>');
         const detailsBoxHTML = note.notes ? `<div class="note-details-box"><strong>Notes:</strong> ${note.notes}</div>` : '';
         
         card.innerHTML = `
             <div class="note-card-header">
-                <span class="note-tag tag-${note.tag.toLowerCase()}">${note.tag}</span>
+                <span class="note-tag tag-${tag.toLowerCase()}">${tag}</span>
                 <div class="note-actions">
                     <button class="note-action-btn pin-toggle-btn" title="${note.pinned ? 'Desfijar' : 'Fijar'}">
                         <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="${note.pinned ? 'currentColor' : 'none'}" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path><circle cx="12" cy="10" r="3"></circle></svg>
@@ -1632,29 +1650,38 @@ document.addEventListener('DOMContentLoaded', () => {
         noteForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
-            const id = noteIdInput.value || 'note-' + Date.now();
+            // Capture the existing id FIRST before reading any other field
+            const existingId = noteIdInput.value.trim();
+            const id = existingId || ('note-' + Date.now());
+
             const title = noteTitleInput.value.trim();
-            const tag = noteTagInput.value;
+            const tag = noteTagInput.value || 'STRATEGY';
             const date = noteDateInput.value.trim();
             const content = noteContentInput.value.trim();
             const notesVal = noteDetailsInput.value.trim();
             const pinned = notePinnedInput.checked;
             
-            if (!title || !content || !date) return;
+            if (!title || !date) return;
             
             const newNote = { id, tag, title, date, content, notes: notesVal, pinned };
             
-            if (noteIdInput.value) {
-                const idx = appExtra.notes.findIndex(n => n.id === id);
+            if (existingId) {
+                // Edit existing note
+                const idx = appExtra.notes.findIndex(n => n.id === existingId);
                 if (idx !== -1) {
                     appExtra.notes[idx] = newNote;
+                } else {
+                    // Fallback: note not found by id, push as new
+                    appExtra.notes.push(newNote);
                 }
             } else {
+                // New note
                 appExtra.notes.push(newNote);
             }
             
             saveAppExtra();
             renderNotes();
+            renderTimeline();
             hideNoteModal();
         });
     }
