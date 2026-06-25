@@ -215,12 +215,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
-    // Persist current appExtra to localStorage immediately on startup
-    // so it's always available on page reload, even before GAS responds.
-    safeStorage.set('app_extra_data', JSON.stringify(appExtra));
-
     function saveAppExtra() {
-        appExtra.lastSaved = Date.now();
         safeStorage.set('app_extra_data', JSON.stringify(appExtra));
         saveExtraToGAS();
     }
@@ -282,18 +277,8 @@ document.addEventListener('DOMContentLoaded', () => {
                 safeStorage.set('budget_categories', JSON.stringify(categories));
             }
             if (loadedExtra) {
-                // Only replace local appExtra with GAS version if GAS is newer,
-                // so local changes made since last sync aren't lost on page reload.
-                const localTimestamp = appExtra.lastSaved || 0;
-                const gasTimestamp = loadedExtra.lastSaved || 0;
-                if (gasTimestamp >= localTimestamp) {
-                    appExtra = loadedExtra;
-                    safeStorage.set('app_extra_data', JSON.stringify(appExtra));
-                }
-                // If local is newer, GAS is stale — push local version up to GAS
-                if (localTimestamp > gasTimestamp) {
-                    saveToGAS();
-                }
+                appExtra = loadedExtra;
+                safeStorage.set('app_extra_data', JSON.stringify(appExtra));
             }
 
             if (loadedCategories || loadedExtra) {
@@ -1249,6 +1234,7 @@ document.addEventListener('DOMContentLoaded', () => {
         const headerDiv = document.createElement('div');
         headerDiv.className = 'card-header-flex';
 
+        // Title — always editable by clicking
         const titleEl = document.createElement('h2');
         titleEl.className = 'card-title';
         titleEl.textContent = tableData.title;
@@ -1265,6 +1251,7 @@ document.addEventListener('DOMContentLoaded', () => {
         });
         headerDiv.appendChild(titleEl);
 
+        // Eliminar button only for cloned tables (not the original)
         if (tableData.editable) {
             const removeBtn = document.createElement('button');
             removeBtn.className = 'btn btn-secondary btn-sm';
@@ -1299,72 +1286,65 @@ document.addEventListener('DOMContentLoaded', () => {
 
         const tbodyEl = document.createElement('tbody');
 
-        tableData.rows.forEach((rowData, idx) => {
+        tableData.rows.forEach((rowData) => {
             const tr = document.createElement('tr');
 
+            // ── Category cell — always editable ──────────────────────
             const catTd = document.createElement('td');
-            if (tableData.editable) {
-                catTd.style.color = 'var(--color-text-muted)';
-                catTd.textContent = rowData.category;
-            } else {
-                catTd.textContent = rowData.category;
-            }
+            const catInput = document.createElement('input');
+            catInput.type = 'text';
+            catInput.className = 'summary-editable-input summary-cat-input';
+            catInput.value = rowData.category || '';
+            catInput.placeholder = 'Categoría...';
+            catInput.addEventListener('blur', () => {
+                rowData.category = catInput.value.trim();
+                saveAppExtra();
+            });
+            catTd.appendChild(catInput);
             tr.appendChild(catTd);
 
+            // ── Monto cell — always editable pill ────────────────────
             const amountTd = document.createElement('td');
-            if (tableData.editable) {
-                const pillWrap = document.createElement('span');
-                pillWrap.className = 'pill-amount pill-input-wrap';
-                const amountInput = document.createElement('input');
-                amountInput.type = 'text';
-                amountInput.className = 'pill-input';
-                amountInput.placeholder = '$0.00';
-                amountInput.inputMode = 'decimal';
-                amountInput.value = rowData.amount ? formatCurrency(rowData.amount) : '';
-                amountInput.addEventListener('blur', () => {
-                    const val = parseCurrency(amountInput.value);
-                    rowData.amount = val;
-                    amountInput.value = val ? formatCurrency(val) : '';
-                    updateSummaryTableTotal(section, tableData);
-                    saveAppExtra();
-                });
-                pillWrap.appendChild(amountInput);
-                amountTd.appendChild(pillWrap);
-            } else {
-                const pill = document.createElement('span');
-                pill.className = 'pill-amount';
-                pill.textContent = formatMoney(rowData.amount);
-                amountTd.appendChild(pill);
-            }
+            const pillWrap = document.createElement('span');
+            pillWrap.className = 'pill-amount pill-input-wrap';
+            const amountInput = document.createElement('input');
+            amountInput.type = 'text';
+            amountInput.className = 'pill-input';
+            amountInput.placeholder = '$0.00';
+            amountInput.inputMode = 'decimal';
+            amountInput.value = rowData.amount ? formatCurrency(rowData.amount) : '';
+            amountInput.addEventListener('blur', () => {
+                const val = parseCurrency(amountInput.value);
+                rowData.amount = val;
+                amountInput.value = val ? formatCurrency(val) : '';
+                updateSummaryTableTotal(section, tableData);
+                saveAppExtra();
+            });
+            pillWrap.appendChild(amountInput);
+            amountTd.appendChild(pillWrap);
             tr.appendChild(amountTd);
 
+            // ── Destino cell — always editable pill ──────────────────
             const destTd = document.createElement('td');
-            if (tableData.editable) {
-                const pillWrap = document.createElement('span');
-                pillWrap.className = 'pill-destination pill-input-wrap';
-                const destInput = document.createElement('input');
-                destInput.type = 'text';
-                destInput.className = 'pill-input';
-                destInput.placeholder = 'destino...';
-                destInput.value = rowData.destino || '';
-                destInput.addEventListener('blur', () => {
-                    rowData.destino = destInput.value.trim();
-                    saveAppExtra();
-                });
-                pillWrap.appendChild(destInput);
-                destTd.appendChild(pillWrap);
-            } else {
-                const pill = document.createElement('span');
-                pill.className = 'pill-destination';
-                pill.textContent = rowData.destino || '';
-                destTd.appendChild(pill);
-            }
+            const destPillWrap = document.createElement('span');
+            destPillWrap.className = 'pill-destination pill-input-wrap';
+            const destInput = document.createElement('input');
+            destInput.type = 'text';
+            destInput.className = 'pill-input';
+            destInput.placeholder = 'destino...';
+            destInput.value = rowData.destino || '';
+            destInput.addEventListener('blur', () => {
+                rowData.destino = destInput.value.trim();
+                saveAppExtra();
+            });
+            destPillWrap.appendChild(destInput);
+            destTd.appendChild(destPillWrap);
             tr.appendChild(destTd);
 
             tbodyEl.appendChild(tr);
         });
 
-        // Total row — always read-only/calculated
+        // ── TOTAL row — always read-only/calculated ───────────────────
         const totalTr = document.createElement('tr');
         totalTr.className = 'summary-row-total';
         const totalCatTd = document.createElement('td');
@@ -1652,10 +1632,7 @@ document.addEventListener('DOMContentLoaded', () => {
         noteForm.addEventListener('submit', (e) => {
             e.preventDefault();
             
-            // Capture the existing id FIRST before reading any other field
-            const existingId = noteIdInput.value.trim();
-            const id = existingId || ('note-' + Date.now());
-
+            const id = noteIdInput.value || 'note-' + Date.now();
             const title = noteTitleInput.value.trim();
             const tag = noteTagInput.value;
             const date = noteDateInput.value.trim();
@@ -1663,27 +1640,21 @@ document.addEventListener('DOMContentLoaded', () => {
             const notesVal = noteDetailsInput.value.trim();
             const pinned = notePinnedInput.checked;
             
-            if (!title || !date) return; // content is optional — HTML required handles UX
+            if (!title || !content || !date) return;
             
             const newNote = { id, tag, title, date, content, notes: notesVal, pinned };
             
-            if (existingId) {
-                // Edit existing note
-                const idx = appExtra.notes.findIndex(n => n.id === existingId);
+            if (noteIdInput.value) {
+                const idx = appExtra.notes.findIndex(n => n.id === id);
                 if (idx !== -1) {
                     appExtra.notes[idx] = newNote;
-                } else {
-                    // Fallback: note not found, push as new
-                    appExtra.notes.push(newNote);
                 }
             } else {
-                // New note
                 appExtra.notes.push(newNote);
             }
             
             saveAppExtra();
             renderNotes();
-            renderTimeline();
             hideNoteModal();
         });
     }
