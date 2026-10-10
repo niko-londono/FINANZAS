@@ -119,6 +119,70 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
+    const DEFAULT_SUMMARY_ROWS = [
+        { category: 'BONO VACA', amount: 34990, destino: 'GASTOS PENDIENTES' },
+        { category: 'DOBLE', amount: 91567, destino: 'bolsa' },
+        { category: 'NAVIDAD', amount: 128820, destino: 'deuda carro' },
+        { category: 'BONO VACA', amount: 34908, destino: 'AHORRADO' },
+    ];
+
+    const DEFAULT_NOTES = [
+        {
+            id: 'note-1',
+            tag: 'STRATEGY',
+            title: 'Q3 Investment Strategy - June 2026',
+            date: '18/06/2026',
+            content: 'Review portfolio performance.\nConsider increasing exposure to renewable energy sector.\nAnalyze emerging market trends and adjust bond allocation.',
+            notes: 'Met with advisor, suggested looking into green bonds.',
+            pinned: true
+        },
+        {
+            id: 'note-2',
+            tag: 'GOAL',
+            title: 'Vacation Planning - Europe',
+            date: '15/06/2026',
+            content: 'Budget: $8,000.\nAccommodations: Booked flights and hotels.\nActivities: Researching museums and tours.\nCurrency exchange rates are favorable.',
+            notes: '',
+            pinned: true
+        },
+        {
+            id: 'note-3',
+            tag: 'REMINDER',
+            title: 'Car Loan Strategy',
+            date: '10/06/2026',
+            content: 'Contact bank for refinancing options.\nCompare interest rates.\nCalculate potential savings.',
+            notes: 'Current rate: 5.5%.',
+            pinned: false
+        },
+        {
+            id: 'note-4',
+            tag: 'IDEA',
+            title: 'Side Hustle Income',
+            date: '05/06/2026',
+            content: 'Explore freelance opportunities.\nSet up online profile.\nResearch pricing and competition.',
+            notes: '',
+            pinned: false
+        }
+    ];
+
+    const DEFAULT_APP_EXTRA = {
+        summaryTables: [
+            { id: 'summary-main', title: 'Year-End Summary 2025', editable: false, rows: DEFAULT_SUMMARY_ROWS }
+        ],
+        distribucion: {
+            qik:           { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
+            'gastos-m-p2': { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
+            apap:          { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
+            'gastos-m-p1': { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
+        },
+        tarjetas: {
+            'tc-contigo':  { usdDone: false, dopDone: false },
+            'tc-jetblue':  { usdDone: false, dopDone: false },
+            'tc-apap':     { usdDone: false, dopDone: false },
+        },
+        notes: DEFAULT_NOTES
+    };
+
     // --- MONTHLY STATE ---
     function getCurrentYYYYMM() {
         const d = new Date();
@@ -196,70 +260,6 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // ── Extended app data: Summary tables, Distribución composition, Tarjetas notas/status ──
-    const DEFAULT_SUMMARY_ROWS = [
-        { category: 'BONO VACA', amount: 34990, destino: 'GASTOS PENDIENTES' },
-        { category: 'DOBLE', amount: 91567, destino: 'bolsa' },
-        { category: 'NAVIDAD', amount: 128820, destino: 'deuda carro' },
-        { category: 'BONO VACA', amount: 34908, destino: 'AHORRADO' },
-    ];
-
-    const DEFAULT_NOTES = [
-        {
-            id: 'note-1',
-            tag: 'STRATEGY',
-            title: 'Q3 Investment Strategy - June 2026',
-            date: '18/06/2026',
-            content: 'Review portfolio performance.\nConsider increasing exposure to renewable energy sector.\nAnalyze emerging market trends and adjust bond allocation.',
-            notes: 'Met with advisor, suggested looking into green bonds.',
-            pinned: true
-        },
-        {
-            id: 'note-2',
-            tag: 'GOAL',
-            title: 'Vacation Planning - Europe',
-            date: '15/06/2026',
-            content: 'Budget: $8,000.\nAccommodations: Booked flights and hotels.\nActivities: Researching museums and tours.\nCurrency exchange rates are favorable.',
-            notes: '',
-            pinned: true
-        },
-        {
-            id: 'note-3',
-            tag: 'REMINDER',
-            title: 'Car Loan Strategy',
-            date: '10/06/2026',
-            content: 'Contact bank for refinancing options.\nCompare interest rates.\nCalculate potential savings.',
-            notes: 'Current rate: 5.5%.',
-            pinned: false
-        },
-        {
-            id: 'note-4',
-            tag: 'IDEA',
-            title: 'Side Hustle Income',
-            date: '05/06/2026',
-            content: 'Explore freelance opportunities.\nSet up online profile.\nResearch pricing and competition.',
-            notes: '',
-            pinned: false
-        }
-    ];
-
-    const DEFAULT_APP_EXTRA = {
-        summaryTables: [
-            { id: 'summary-main', title: 'Year-End Summary 2025', editable: false, rows: DEFAULT_SUMMARY_ROWS }
-        ],
-        distribucion: {
-            qik:           { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
-            'gastos-m-p2': { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
-            apap:          { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
-            'gastos-m-p1': { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] },
-        },
-        tarjetas: {
-            'tc-contigo':  { usdDone: false, dopDone: false },
-            'tc-jetblue':  { usdDone: false, dopDone: false },
-            'tc-apap':     { usdDone: false, dopDone: false },
-        },
-        notes: DEFAULT_NOTES
-    };
-
     // Initial load logic moved to init/switchMonth
     function ensureAppExtraDefaults() {
         if (!appExtra) appExtra = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA));
