@@ -262,31 +262,35 @@ document.addEventListener('DOMContentLoaded', () => {
     // ── Extended app data: Summary tables, Distribución composition, Tarjetas notas/status ──
     // Initial load logic moved to init/switchMonth
     function ensureAppExtraDefaults() {
-        if (!appExtra) appExtra = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA));
+        if (!appExtra || typeof appExtra !== 'object' || Object.keys(appExtra).length === 0) {
+            appExtra = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA));
+        }
         if (!appExtra.summaryTables) appExtra.summaryTables = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.summaryTables));
         if (!appExtra.distribucion) appExtra.distribucion = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.distribucion));
         if (!appExtra.tarjetas) appExtra.tarjetas = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.tarjetas));
         if (!appExtra.notes) appExtra.notes = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.notes));
-    }
 
-    // Migration: the original (non-editable) summary table used to default to the
-    // title "Year-End Summary" — rename it to "Year-End Summary 2025" if still default.
-    const mainSummaryTable = appExtra.summaryTables.find(t => t.id === 'summary-main');
-    if (mainSummaryTable && mainSummaryTable.title === 'Year-End Summary') {
-        mainSummaryTable.title = 'Year-End Summary 2025';
-    }
-
-    // Migration: distribucion used to store plain arrays per key; now it's {pendingDone, rows}.
-    if (appExtra.distribucion) {
-        Object.keys(appExtra.distribucion).forEach(key => {
-            const val = appExtra.distribucion[key];
-            if (Array.isArray(val)) {
-                appExtra.distribucion[key] = { pendingDone: false, rows: val };
-            } else if (val && typeof val === 'object' && !Array.isArray(val.rows)) {
-                val.rows = val.rows || [{ catId: '', subId: '', amount: 0 }];
-                val.pendingDone = val.pendingDone || false;
+        // Migration: the original (non-editable) summary table used to default to the
+        // title "Year-End Summary" — rename it to "Year-End Summary 2025" if still default.
+        if (appExtra.summaryTables) {
+            const mainSummaryTable = appExtra.summaryTables.find(t => t.id === 'summary-main');
+            if (mainSummaryTable && mainSummaryTable.title === 'Year-End Summary') {
+                mainSummaryTable.title = 'Year-End Summary 2025';
             }
-        });
+        }
+
+        // Migration: distribucion used to store plain arrays per key; now it's {pendingDone, rows}.
+        if (appExtra.distribucion) {
+            Object.keys(appExtra.distribucion).forEach(key => {
+                const val = appExtra.distribucion[key];
+                if (Array.isArray(val)) {
+                    appExtra.distribucion[key] = { pendingDone: false, rows: val };
+                } else if (val && typeof val === 'object' && !Array.isArray(val.rows)) {
+                    val.rows = val.rows || [{ catId: '', subId: '', amount: 0 }];
+                    val.pendingDone = val.pendingDone || false;
+                }
+            });
+        }
     }
 
     function saveAppExtra() {
@@ -295,9 +299,11 @@ document.addEventListener('DOMContentLoaded', () => {
         saveExtraToGAS();
     }
 
-    // Persist the initial state immediately so it's available after page reload
-    // even before GAS responds
-    saveByMonth();
+    // Persist the initial state to localStorage (NOT to cloud) so it's available
+    // after page reload even before GAS responds. Only save if migration populated data.
+    if (byMonth[currentMonth]) {
+        safeStorage.set('budget_by_month', JSON.stringify(byMonth));
+    }
 
     // Google Apps Script integration state
     let gasApiUrl = safeStorage.get('gas_api_url');
@@ -348,18 +354,39 @@ document.addEventListener('DOMContentLoaded', () => {
                 let oldCats = Array.isArray(data) ? data : data.categories;
                 let oldExtra = data.extra;
                 
-                loadedByMonth = {};
-                loadedByMonth[currentMonth] = {
-                    categories: oldCats || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
-                    extra: oldExtra || JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA))
-                };
+                // Only import if we actually have categories from cloud
+                if (oldCats && oldCats.length > 0) {
+                    loadedByMonth = {};
+                    loadedByMonth[currentMonth] = {
+                        categories: oldCats,
+                        extra: oldExtra || JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA))
+                    };
+                }
             }
 
             if (loadedByMonth && Object.keys(loadedByMonth).length > 0) {
-                byMonth = loadedByMonth;
+                // Merge loaded months into existing byMonth rather than replacing everything
+                Object.keys(loadedByMonth).forEach(month => {
+                    const cloudMonth = loadedByMonth[month];
+                    const localMonth = byMonth[month];
+                    
+                    // Use timestamp-based conflict resolution if both exist
+                    if (localMonth && localMonth.extra && cloudMonth.extra) {
+                        const localTs = localMonth.extra.lastSaved || 0;
+                        const cloudTs = cloudMonth.extra.lastSaved || 0;
+                        if (cloudTs >= localTs) {
+                            byMonth[month] = cloudMonth;
+                        }
+                        // If local is newer, keep local (and we'll push it up below)
+                    } else {
+                        byMonth[month] = cloudMonth;
+                    }
+                });
                 safeStorage.set('budget_by_month', JSON.stringify(byMonth));
                 switchMonth(currentMonth); // will call init()
                 updateDbStatus('connected');
+                // Push local state up if we have months the cloud didn't have
+                saveToGAS();
             } else {
                 updateDbStatus('connected');
                 saveToGAS(); 

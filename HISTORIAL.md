@@ -29,3 +29,19 @@ Este archivo mantiene un registro del contexto actual de la aplicación, su esta
   - Se implementó la vista gráfica anual en la pestaña "Distribución" con barras apiladas.
   - Se creó el script de backend `gas_backend.gs` preparado para almacenar objetos por mes en Google Sheets.
   - Se aseguró la retrocompatibilidad y migración automática de los datos guardados en el modelo global antiguo al mes actual.
+- **FIX: Conexión a la nube (GAS) rota tras refactorización mensual**:
+  - **Causa raíz**: El código de migración (`appExtra.summaryTables.find(...)`) se ejecutaba a nivel de módulo cuando `appExtra` aún era `{}` (vacío), causando un crash `TypeError: Cannot read properties of undefined (reading 'find')` que mataba **todo** el JavaScript antes de llegar a `init()` o `loadFromGAS()`. El ícono de nube quedaba gris porque nunca se ejecutaba `updateDbStatus()`.
+  - **Fix 1**: Se movió el código de migración dentro de `ensureAppExtraDefaults()` donde `appExtra` ya tiene sus keys pobladas.
+  - **Fix 2**: Se eliminó la llamada `saveByMonth()` a nivel de módulo que guardaba `{categories:[], extra:{}}` vacíos a la nube antes de cargar datos reales.
+  - **Fix 3**: Se mejoró `loadFromGAS()` para hacer merge inteligente (con resolución por timestamp) en vez de reemplazar todo `byMonth` con datos de la nube.
+
+### Arquitectura de Datos
+- **localStorage key**: `budget_by_month` → `{ "YYYY-MM": { categories: [...], extra: {...} } }`
+- **Backend GAS**: El script actual del usuario es simple (celda A1 de Google Sheets). Lee/escribe JSON raw.
+  - URL desplegada: `https://script.google.com/macros/s/AKfycbz.../exec`
+  - GET → devuelve JSON de celda A1
+  - POST → guarda `e.postData.contents` en celda A1
+- **Formato en la nube (actual/viejo)**: `{ categories: [...], extra: {...} }`
+- **Formato nuevo (cuando se actualice GAS)**: `{ byMonth: {...}, categories: [...], extra: {...} }`
+- **Retrocompatibilidad**: `loadFromGAS()` detecta formato viejo y lo convierte a `byMonth[currentMonth]`.
+
