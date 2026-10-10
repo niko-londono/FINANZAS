@@ -1994,3 +1994,62 @@ body {
 }
 
 
+
+/* Month Selector */
+.month-selector-widget {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+    background: var(--bg-card);
+    padding: 0.35rem;
+    border-radius: 8px;
+    box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+.month-selector-widget select {
+    background: var(--bg-body);
+    border: 1px solid var(--border-color);
+    color: var(--color-text);
+    border-radius: 4px;
+    outline: none;
+}
+
+/* Distribution Graph */
+.dist-graph-container {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+    height: 250px;
+    padding: 1rem 0;
+    gap: 0.5rem;
+    border-bottom: 1px solid var(--border-color);
+}
+.dist-graph-col {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    flex: 1;
+    height: 100%;
+}
+.dist-bar-wrap {
+    flex: 1;
+    width: 100%;
+    max-width: 40px;
+    background: rgba(255,255,255,0.03);
+    border-radius: 4px 4px 0 0;
+    display: flex;
+    flex-direction: column-reverse;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+}
+.dist-bar-segment {
+    width: 100%;
+    transition: height 0.3s ease;
+}
+.dist-bar-segment:hover {
+    filter: brightness(1.2);
+}
+.dist-bar-label {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-weight: 600;
+}

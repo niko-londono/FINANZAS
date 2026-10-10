@@ -119,9 +119,81 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     };
 
-    let categories = JSON.parse(safeStorage.get('budget_categories')) || DEFAULT_CATEGORIES;
+    // --- MONTHLY STATE ---
+    function getCurrentYYYYMM() {
+        const d = new Date();
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+    }
+
+    let byMonth = JSON.parse(safeStorage.get('budget_by_month'));
+    let currentMonth = getCurrentYYYYMM();
+    let categories = [];
+    let appExtra = {};
+    
     let collapsedCategories = new Set(JSON.parse(safeStorage.get('collapsed_categories')) || []);
     const tbody = document.getElementById('budgetTableBody');
+
+    // Migration from old global state
+    const oldCats = safeStorage.get('budget_categories');
+    const oldExtra = safeStorage.get('app_extra_data');
+    if (!byMonth) {
+        byMonth = {};
+        if (oldCats || oldExtra) {
+            safeStorage.set('budget_categories_backup_v1', oldCats || '[]');
+            safeStorage.set('app_extra_data_backup_v1', oldExtra || '{}');
+            byMonth[currentMonth] = {
+                categories: oldCats ? JSON.parse(oldCats) : JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+                extra: oldExtra ? JSON.parse(oldExtra) : JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA))
+            };
+        }
+    }
+    
+    function resetStatesForNewMonth(extra) {
+        if (extra.tarjetas) {
+            Object.keys(extra.tarjetas).forEach(k => {
+                extra.tarjetas[k].usdDone = false;
+                extra.tarjetas[k].dopDone = false;
+            });
+        }
+        if (extra.distribucion) {
+            Object.keys(extra.distribucion).forEach(k => {
+                extra.distribucion[k].pendingDone = false;
+            });
+        }
+    }
+
+    function switchMonth(yyyyMM) {
+        currentMonth = yyyyMM;
+        if (!byMonth[yyyyMM]) {
+            // Find nearest previous month
+            const existingMonths = Object.keys(byMonth).sort();
+            const prevMonths = existingMonths.filter(m => m < yyyyMM);
+            if (prevMonths.length > 0) {
+                const nearest = prevMonths[prevMonths.length - 1];
+                byMonth[yyyyMM] = JSON.parse(JSON.stringify(byMonth[nearest]));
+                resetStatesForNewMonth(byMonth[yyyyMM].extra);
+            } else {
+                byMonth[yyyyMM] = {
+                    categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+                    extra: JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA))
+                };
+            }
+            saveByMonth();
+        }
+        categories = byMonth[yyyyMM].categories;
+        appExtra = byMonth[yyyyMM].extra;
+        
+        updateMonthUI();
+        init();
+    }
+    
+    function saveByMonth() {
+        if (!byMonth[currentMonth]) byMonth[currentMonth] = {};
+        byMonth[currentMonth].categories = categories;
+        byMonth[currentMonth].extra = appExtra;
+        safeStorage.set('budget_by_month', JSON.stringify(byMonth));
+        saveToGAS();
+    }
 
     // ── Extended app data: Summary tables, Distribución composition, Tarjetas notas/status ──
     const DEFAULT_SUMMARY_ROWS = [
@@ -188,12 +260,14 @@ document.addEventListener('DOMContentLoaded', () => {
         notes: DEFAULT_NOTES
     };
 
-    let appExtra = JSON.parse(safeStorage.get('app_extra_data')) || JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA));
-    // Fill in any missing keys (in case of partial old data)
-    if (!appExtra.summaryTables) appExtra.summaryTables = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.summaryTables));
-    if (!appExtra.distribucion) appExtra.distribucion = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.distribucion));
-    if (!appExtra.tarjetas) appExtra.tarjetas = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.tarjetas));
-    if (!appExtra.notes) appExtra.notes = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.notes));
+    // Initial load logic moved to init/switchMonth
+    function ensureAppExtraDefaults() {
+        if (!appExtra) appExtra = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA));
+        if (!appExtra.summaryTables) appExtra.summaryTables = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.summaryTables));
+        if (!appExtra.distribucion) appExtra.distribucion = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.distribucion));
+        if (!appExtra.tarjetas) appExtra.tarjetas = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.tarjetas));
+        if (!appExtra.notes) appExtra.notes = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.notes));
+    }
 
     // Migration: the original (non-editable) summary table used to default to the
     // title "Year-End Summary" — rename it to "Year-End Summary 2025" if still default.
@@ -217,13 +291,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function saveAppExtra() {
         appExtra.lastSaved = Date.now();
-        safeStorage.set('app_extra_data', JSON.stringify(appExtra));
+        saveByMonth();
         saveExtraToGAS();
     }
 
     // Persist the initial state immediately so it's available after page reload
     // even before GAS responds
-    safeStorage.set('app_extra_data', JSON.stringify(appExtra));
+    saveByMonth();
 
     // Google Apps Script integration state
     let gasApiUrl = safeStorage.get('gas_api_url');
@@ -233,7 +307,7 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     function saveCategories() {
-        safeStorage.set('budget_categories', JSON.stringify(categories));
+        saveByMonth();
         saveToGAS();
     }
 
@@ -267,52 +341,14 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Response status ' + response.status);
             const data = await response.json();
 
-            // Support both legacy format (array of categories) and new combined format
-            let loadedCategories = null;
-            let loadedExtra = null;
-            if (Array.isArray(data)) {
-                loadedCategories = data;
-            } else if (data && typeof data === 'object') {
-                if (Array.isArray(data.categories)) loadedCategories = data.categories;
-                if (data.extra && typeof data.extra === 'object') loadedExtra = data.extra;
-            }
-
-            if (loadedCategories && loadedCategories.length > 0) {
-                categories = loadedCategories;
-                safeStorage.set('budget_categories', JSON.stringify(categories));
-            }
-            if (loadedExtra) {
-                // Only replace local appExtra with GAS version if GAS is newer
-                const localTimestamp = appExtra.lastSaved || 0;
-                const gasTimestamp = loadedExtra.lastSaved || 0;
-                if (gasTimestamp >= localTimestamp) {
-                    appExtra = loadedExtra;
-                }
-                // Sanitize: ensure all required keys exist after loading from GAS
-                if (!appExtra.summaryTables) appExtra.summaryTables = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.summaryTables));
-                if (!appExtra.distribucion)  appExtra.distribucion  = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.distribucion));
-                if (!appExtra.tarjetas)      appExtra.tarjetas      = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.tarjetas));
-                if (!appExtra.notes)         appExtra.notes         = JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA.notes));
-                safeStorage.set('app_extra_data', JSON.stringify(appExtra));
-                // If local was newer, push it up to GAS to re-sync
-                if (localTimestamp > gasTimestamp) saveToGAS();
-            }
-
-            if (loadedCategories || loadedExtra) {
+            if (data && data.byMonth) {
+                byMonth = data.byMonth;
+                safeStorage.set('budget_by_month', JSON.stringify(byMonth));
+                switchMonth(currentMonth); // will call init()
                 updateDbStatus('connected');
-                // Re-render table and metrics inline
-                if (tbody) tbody.innerHTML = generateTableRowsHTML();
-                updateMetrics();
-                populateParentSelect();
-                populateCompositionDropdowns();
-                renderSummaryTablesFromData();
-                renderDistribucionFromData();
-                renderTarjetasFromData();
-                renderNotes();
-                renderTimeline();
             } else {
                 updateDbStatus('connected');
-                saveToGAS(); // upload current localStorage defaults if cloud is empty
+                saveToGAS(); 
             }
         } catch (err) {
             console.error('Failed to load from Apps Script:', err);
@@ -329,11 +365,9 @@ document.addEventListener('DOMContentLoaded', () => {
         try {
             await fetch(gasApiUrl, {
                 method: 'POST',
-                mode: 'no-cors', // bypass CORS preflight redirect issues in GAS
-                headers: {
-                    'Content-Type': 'text/plain'
-                },
-                body: JSON.stringify({ categories: categories, extra: appExtra })
+                mode: 'no-cors',
+                headers: { 'Content-Type': 'text/plain' },
+                body: JSON.stringify({ byMonth: byMonth })
             });
             updateDbStatus('connected');
         } catch (err) {
@@ -720,7 +754,89 @@ document.addEventListener('DOMContentLoaded', () => {
 
     let hasLoadedFromCloud = false;
 
+    
+    // --- MONTH UI LOGIC ---
+    const monthSelect = document.getElementById('globalMonthSelect');
+    const prevMonthBtn = document.getElementById('prevMonthBtn');
+    const nextMonthBtn = document.getElementById('nextMonthBtn');
+    const todayMonthBtn = document.getElementById('todayMonthBtn');
+    
+    function populateMonthSelect() {
+        if (!monthSelect) return;
+        monthSelect.innerHTML = '';
+        const monthsSet = new Set(Object.keys(byMonth));
+        monthsSet.add(currentMonth);
+        const sorted = Array.from(monthsSet).sort();
+        
+        sorted.forEach(m => {
+            const opt = document.createElement('option');
+            opt.value = m;
+            const [yyyy, mm] = m.split('-');
+            const date = new Date(yyyy, parseInt(mm)-1, 1);
+            const monthName = date.toLocaleString('es-ES', { month: 'long' });
+            opt.textContent = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${yyyy}`;
+            // Add a dot if the month exists in byMonth and has data
+            if (byMonth[m]) {
+                opt.textContent += ' •';
+            }
+            if (m === currentMonth) opt.selected = true;
+            monthSelect.appendChild(opt);
+        });
+    }
+    
+    function updateMonthUI() {
+        populateMonthSelect();
+        document.querySelectorAll('.dashboard-subtitle').forEach(el => {
+            if (el.textContent.includes('Overview') || el.textContent.includes('Summary') || el.textContent.includes('Monthly') || el.textContent.includes('Estado de pago') || el.textContent.includes('Financial Notes')) {
+                const [yyyy, mm] = currentMonth.split('-');
+                const date = new Date(yyyy, parseInt(mm)-1, 1);
+                const monthName = date.toLocaleString('es-ES', { month: 'long' });
+                el.textContent = `${monthName.charAt(0).toUpperCase() + monthName.slice(1)} ${yyyy}`;
+            }
+        });
+    }
+
+    if (monthSelect) {
+        monthSelect.addEventListener('change', (e) => {
+            switchMonth(e.target.value);
+        });
+    }
+    if (prevMonthBtn) {
+        prevMonthBtn.addEventListener('click', () => {
+            let [yyyy, mm] = currentMonth.split('-');
+            let d = new Date(yyyy, parseInt(mm)-2, 1);
+            switchMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}`);
+        });
+    }
+    if (nextMonthBtn) {
+        nextMonthBtn.addEventListener('click', () => {
+            let [yyyy, mm] = currentMonth.split('-');
+            let d = new Date(yyyy, parseInt(mm), 1);
+            switchMonth(`${d.getFullYear()}-${String(d.getMonth()+1).padStart(2, '0')}`);
+        });
+    }
+    if (todayMonthBtn) {
+        todayMonthBtn.addEventListener('click', () => {
+            switchMonth(getCurrentYYYYMM());
+        });
+    }
+    
+    const resetMonthBtn = document.getElementById('resetMonthBtn');
+    if (resetMonthBtn) {
+        resetMonthBtn.addEventListener('click', () => {
+            if(confirm('¿Estás seguro de restablecer este mes a la plantilla base? Esto borrará los datos actuales solo de ESTE mes.')) {
+                byMonth[currentMonth] = {
+                    categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+                    extra: JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA))
+                };
+                saveByMonth();
+                switchMonth(currentMonth);
+            }
+        });
+    }
+
     function init() {
+        ensureAppExtraDefaults();
         if (!tbody) return;
         tbody.innerHTML = generateTableRowsHTML();
         updateMetrics();
@@ -821,7 +937,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (cat) {
                 cat.budgeted = val;
                 // Don't save to GAS on every keystroke, but update calculations live
-                safeStorage.set('budget_categories', JSON.stringify(categories));
+                saveByMonth();
                 updateCalculationsInline();
             }
         }
@@ -1036,7 +1152,92 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Re-render every Distribución card's composition rows from appExtra.distribucion
+    
+    function renderDistribucionGraph() {
+        const graphContainer = document.getElementById('distribucionGraph');
+        if (!graphContainer) return;
+        graphContainer.innerHTML = '';
+        
+        const currentYear = currentMonth.split('-')[0];
+        const months = Array.from({length: 12}, (_, i) => `${currentYear}-${String(i+1).padStart(2, '0')}`);
+        
+        // Find top level categories
+        const topLevel = categories.filter(c => c.parentId === null);
+        
+        let maxTotal = 1; // avoid division by zero
+        const monthTotals = months.map(m => {
+            const mData = byMonth[m];
+            if (!mData || !mData.categories) return 0;
+            const inc = mData.categories.find(c => c.id === 'sueldo');
+            let income = 0;
+            if (inc) {
+                const hasChildren = mData.categories.some(c => c.parentId === 'sueldo');
+                income = hasChildren ? mData.categories.filter(c => c.parentId === 'sueldo').reduce((sum, c) => sum + (c.budgeted || 0), 0) : (inc.budgeted || 0);
+            }
+            if (income > maxTotal) maxTotal = income;
+            return income;
+        });
+
+        const toggleMode = document.getElementById('distGraphToggle') ? document.getElementById('distGraphToggle').checked : false; // false = $, true = %
+        
+        months.forEach((m, idx) => {
+            const col = document.createElement('div');
+            col.className = 'dist-graph-col';
+            
+            const isFuture = m > getCurrentYYYYMM();
+            if (isFuture) col.style.opacity = '0.5';
+            
+            const mData = byMonth[m];
+            const barWrap = document.createElement('div');
+            barWrap.className = 'dist-bar-wrap';
+            
+            if (mData && mData.categories) {
+                const inc = mData.categories.find(c => c.id === 'sueldo');
+                let income = 0;
+                if (inc) {
+                    const hasChildren = mData.categories.some(c => c.parentId === 'sueldo');
+                    income = hasChildren ? mData.categories.filter(c => c.parentId === 'sueldo').reduce((sum, c) => sum + (c.budgeted || 0), 0) : (inc.budgeted || 0);
+                }
+                
+                const expCats = mData.categories.filter(c => c.id !== 'sueldo' && c.parentId === null);
+                let currentHeight = 0;
+                
+                expCats.forEach(cat => {
+                    const val = cat.budgeted || 0;
+                    if (val > 0) {
+                        const segment = document.createElement('div');
+                        segment.className = 'dist-bar-segment';
+                        // Get color
+                        const color = colorMap[cat.id] ? colorMap[cat.id].parent : '#ccc';
+                        segment.style.backgroundColor = color;
+                        
+                        let pct = income > 0 ? (val / income) * 100 : 0;
+                        if (toggleMode) {
+                            segment.style.height = `${pct}%`;
+                        } else {
+                            const hPct = (val / maxTotal) * 100;
+                            segment.style.height = `${hPct}%`;
+                        }
+                        segment.title = `${cat.name}: ${formatCurrency(val)}`;
+                        barWrap.appendChild(segment);
+                    }
+                });
+            }
+            
+            const label = document.createElement('div');
+            label.className = 'dist-bar-label';
+            const date = new Date(currentYear, idx, 1);
+            label.textContent = date.toLocaleString('es-ES', { month: 'short' }).toUpperCase();
+            
+            col.appendChild(barWrap);
+            col.appendChild(label);
+            graphContainer.appendChild(col);
+        });
+    }
+
+    document.getElementById('distGraphToggle')?.addEventListener('change', renderDistribucionGraph);
     function renderDistribucionFromData() {
+        renderDistribucionGraph();
         const cards = document.querySelectorAll('.dist-card[data-dist-key]');
         cards.forEach(card => {
             const key = card.getAttribute('data-dist-key');
@@ -1740,8 +1941,8 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     // Initial render of all persisted sections
-    init();
-    populateCompositionDropdowns();
+    switchMonth(currentMonth);
+    // populateCompositionDropdowns();
     renderSummaryTablesFromData();
     renderTarjetasFromData();
 });

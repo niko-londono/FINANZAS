@@ -65,6 +65,14 @@
 
         <!-- Mobile Header -->
         <div class="mobile-header">
+            
+            <div class="month-selector-widget">
+                <button id="prevMonthBtn" class="btn btn-sm btn-secondary">&lt;</button>
+                <select id="globalMonthSelect" class="form-input" style="padding: 0.2rem; min-width: 130px; border-color: rgba(255,255,255,0.1); font-weight: 600;"></select>
+                <button id="nextMonthBtn" class="btn btn-sm btn-secondary">&gt;</button>
+                <button id="todayMonthBtn" class="btn btn-sm btn-primary">Hoy</button>
+            </div>
+    
             <div class="mobile-logo" style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.1rem; color: #ffffff;">
                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>
                 <span>FINANZAS</span>
@@ -81,6 +89,18 @@
         </div>
 
         <!-- Dashboard Layout -->
+        
+        <div class="global-top-bar" style="position: absolute; top: 10px; right: 20px; z-index: 100;">
+
+            <div class="month-selector-widget">
+                <button id="prevMonthBtn" class="btn btn-sm btn-secondary">&lt;</button>
+                <select id="globalMonthSelect" class="form-input" style="padding: 0.2rem; min-width: 130px; border-color: rgba(255,255,255,0.1); font-weight: 600;"></select>
+                <button id="nextMonthBtn" class="btn btn-sm btn-secondary">&gt;</button>
+                <button id="todayMonthBtn" class="btn btn-sm btn-primary">Hoy</button>
+            </div>
+    
+        </div>
+    
         <main class="dashboard-layout">
             
             <!-- Left/Main Column -->
@@ -192,6 +212,22 @@
                     <span class="dashboard-subtitle">Monthly Summary</span>
                 </header>
 
+                
+                <div class="card" style="margin-bottom: 1rem;">
+                    <div class="card-header-flex">
+                        <h2 class="card-title">Distribución Anual</h2>
+                        <div style="display: flex; gap: 0.5rem; align-items: center;">
+                            <label style="font-size: 0.8rem; font-weight: bold; display: flex; align-items: center; gap: 5px;">
+                                $ Monto 
+                                <input type="checkbox" id="distGraphToggle" style="transform: scale(1.2);"> 
+                                % Dist
+                            </label>
+                            <button id="resetMonthBtn" class="btn btn-sm btn-secondary" style="color:var(--color-danger); margin-left: 10px;">Restablecer Mes</button>
+                        </div>
+                    </div>
+                    <div id="distribucionGraph" class="dist-graph-container"></div>
+                </div>
+    
                 <div class="dist-grid">
 
                     <!-- QIK -->
