@@ -341,8 +341,22 @@ document.addEventListener('DOMContentLoaded', () => {
             if (!response.ok) throw new Error('Response status ' + response.status);
             const data = await response.json();
 
-            if (data && data.byMonth) {
-                byMonth = data.byMonth;
+            let loadedByMonth = data && data.byMonth;
+
+            // Retro-compatibility: if the cloud returned the OLD format
+            if (!loadedByMonth && (Array.isArray(data) || (data && (data.categories || data.extra)))) {
+                let oldCats = Array.isArray(data) ? data : data.categories;
+                let oldExtra = data.extra;
+                
+                loadedByMonth = {};
+                loadedByMonth[currentMonth] = {
+                    categories: oldCats || JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+                    extra: oldExtra || JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA))
+                };
+            }
+
+            if (loadedByMonth && Object.keys(loadedByMonth).length > 0) {
+                byMonth = loadedByMonth;
                 safeStorage.set('budget_by_month', JSON.stringify(byMonth));
                 switchMonth(currentMonth); // will call init()
                 updateDbStatus('connected');
@@ -363,11 +377,16 @@ document.addEventListener('DOMContentLoaded', () => {
         }
         updateDbStatus('syncing');
         try {
+            const payload = { 
+                byMonth: byMonth,
+                categories: categories, // For backward compatibility with old script
+                extra: appExtra         // For backward compatibility with old script
+            };
             await fetch(gasApiUrl, {
                 method: 'POST',
                 mode: 'no-cors',
                 headers: { 'Content-Type': 'text/plain' },
-                body: JSON.stringify({ byMonth: byMonth })
+                body: JSON.stringify(payload)
             });
             updateDbStatus('connected');
         } catch (err) {
