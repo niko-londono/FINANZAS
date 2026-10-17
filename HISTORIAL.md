@@ -35,13 +35,30 @@ Este archivo mantiene un registro del contexto actual de la aplicación, su esta
   - **Fix 2**: Se eliminó la llamada `saveByMonth()` a nivel de módulo que guardaba `{categories:[], extra:{}}` vacíos a la nube antes de cargar datos reales.
   - **Fix 3**: Se mejoró `loadFromGAS()` para hacer merge inteligente (con resolución por timestamp) en vez de reemplazar todo `byMonth` con datos de la nube.
 
+### [2026-10-17]
+- **Consolidación en Archivos Maestros y Migración a React 18**:
+  - Para facilitar la modificación futura por modelos de IA con bajo consumo de tokens y máxima mantenibilidad, toda la aplicación se concentró en **3 archivos maestros**:
+    1. **`MAESTRO.js`**: Motor de datos y lógica financiera. Contiene constantes por defecto (`DEFAULT_CATEGORIES`, `DEFAULT_APP_EXTRA`, `DEFAULT_NOTES`, `DEFAULT_SUMMARY_ROWS`), motor de cálculo (`computeMetrics`, `getChildrenSum`, `getVirtualCategories`, `computeDistribucionSuggested`, `computeAnnualDistribucionData`), persistencia en `localStorage` (`budget_by_month`) y sincronización bidireccional con Google Apps Script (GET/POST con fallback y resolución de conflictos por timestamp).
+    2. **`MAESTRO.css`**: Hoja de estilos centralizada con tipografía *Outfit* e *Inter*, paleta fintech, glassmorphism, micro-animaciones, diseño 100% responsivo para móviles y escritorio, cards, tablas, toggles de estado y modales.
+    3. **`MAESTRO.jsx`**: Aplicación completa desarrollada en React 18 nativo con Hooks (`useState`, `useEffect`, `useMemo`, `useCallback`, `useRef`). Incluye:
+       - **Selector Global de Mes**: navegación anterior/siguiente, "Hoy", dropdown con indicador de puntos (•) en meses con datos y clonación automática de plantilla.
+       - **Pestaña Overview**: tarjetas KPI (Total Income, Total Expenses, Remaining Balance con colores semánticos), tabla jerárquica con categorías y subcategorías colapsables, inputs inline de presupuesto, columna "Difference" calculada y fila final "Sueldo Cuadre".
+       - **Pestaña Summary**: tablas dinámicas clonables ("Year-End Summary 2025" y tablas adicionales), edición de categorías, montos y destinos, totales calculados y botón "+ Agregar otra tabla".
+       - **Pestaña Distribución**: gráfico anual de barras apiladas interactivo (12 meses) con selector de visualización en `$ Monto` o `% Dist`, botón "Restablecer Mes" y 4 tarjetas de distribución (`QIK`, `GASTOS M p2`, `APAP`, `GASTOS M p1`) con filas de composición editables, cálculo de sugeridos y toggle de estado `PENDIENTE` / `DONE`.
+       - **Pestaña Tarjetas**: tabla de control de pagos para tarjetas de crédito (`TC CONTIGO`, `TC JET BLUE`, `TC APAP`) con toggles independientes por moneda (`USD` y `DOP`).
+       - **Pestaña Notes**: diario financiero con tarjetas de notas categorizadas (`STRATEGY`, `GOAL`, `REMINDER`, `IDEA`), notas fijadas (pinned), edición/eliminación modal y barra lateral de timeline con accesos rápidos que iluminan la tarjeta de distribución correspondiente.
+       - **Pestaña Settings**: interfaz para configurar y probar la URL de Google Apps Script Web App, botón de sincronización manual, exportación de respaldo JSON y restauración de copias de seguridad.
+       - **Modales**: Agregar Categoría, Configuración de Base de Datos Cloud y Agregar/Editar Nota.
+  - **Punto de Entrada (`index.html`)**: Carga React 18, ReactDOM 18 y Babel Standalone desde CDNs estables, enlazando `MAESTRO.css`, `MAESTRO.js` y `MAESTRO.jsx` con pantalla de carga inicial y fallback informativo para ejecuciones locales bajo protocolo `file://`.
+  - **Respaldo histórico**: Se preservó la versión original en `index.legacy.html` y la carpeta `src/`.
+  - **Verificación**: Probado y validado en navegador en todos sus flujos de navegación sin errores de consola.
+
 ### Arquitectura de Datos
 - **localStorage key**: `budget_by_month` → `{ "YYYY-MM": { categories: [...], extra: {...} } }`
 - **Backend GAS**: El script actual del usuario es simple (celda A1 de Google Sheets). Lee/escribe JSON raw.
   - URL desplegada: `https://script.google.com/macros/s/AKfycbz.../exec`
   - GET → devuelve JSON de celda A1
   - POST → guarda `e.postData.contents` en celda A1
-- **Formato en la nube (actual/viejo)**: `{ categories: [...], extra: {...} }`
-- **Formato nuevo (cuando se actualice GAS)**: `{ byMonth: {...}, categories: [...], extra: {...} }`
-- **Retrocompatibilidad**: `loadFromGAS()` detecta formato viejo y lo convierte a `byMonth[currentMonth]`.
+- **Formato en la nube**: `{ byMonth: {...}, categories: [...], extra: {...} }`
+- **Retrocompatibilidad**: `loadFromGAS()` detecta formato viejo o nuevo y realiza merge inteligente con timestamp `lastSaved`.
 

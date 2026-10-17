@@ -1,637 +1,77 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <!-- Webapp Standalone tags -->
-    <meta name="apple-mobile-web-app-capable" content="yes">
-    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-    <meta name="apple-mobile-web-app-title" content="Finanzas">
-    <meta name="mobile-web-app-capable" content="yes">
-    <meta name="theme-color" content="#101c34">
-    <title>Financial Budget Dashboard - Finanzas</title>
-    <link rel="icon" type="image/png" href="src/assets/favicon.png">
-    <link rel="stylesheet" href="src/css/style.css?v=2">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+  <!-- Webapp Standalone tags -->
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="Finanzas">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="theme-color" content="#101c34">
+  <title>Financial Budget Dashboard - Finanzas</title>
+  <link rel="icon" type="image/png" href="src/assets/favicon.png">
+
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- Estilos Maestros -->
+  <link rel="stylesheet" href="MAESTRO.css">
+
+  <!-- Dependencias de React 18 y Babel Standalone para transpilar JSX en el navegador -->
+  <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+  <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+  <script crossorigin src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.24.4/babel.min.js"></script>
 </head>
 <body>
-    <div class="sidebar-overlay" id="sidebarOverlay"></div>
-
-    <div class="app-container">
-        <!-- Sidebar Navigation -->
-        <aside class="sidebar" id="sidebar">
-            <div class="sidebar-logo">
-                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>
-                <span>FINANZAS</span>
-            </div>
-            <ul class="sidebar-menu">
-                <li class="sidebar-item active" data-tab="overview">
-                    <a href="#">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-                        Overview
-                    </a>
-                </li>
-                <li class="sidebar-item" data-tab="summary">
-                    <a href="#">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-                        Summary
-                    </a>
-                </li>
-                <li class="sidebar-item" data-tab="distribucion">
-                    <a href="#">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
-                        Distribución
-                    </a>
-                </li>
-                <li class="sidebar-item" data-tab="tarjetas">
-                    <a href="#">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
-                        Tarjetas
-                    </a>
-                </li>
-                <li class="sidebar-item" data-tab="settings">
-                    <a href="#">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-                        Settings
-                    </a>
-                </li>
-                <li class="sidebar-item" data-tab="notes">
-                    <a href="#">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-                        Notes
-                    </a>
-                </li>
-            </ul>
-        </aside>
-
-        <!-- Mobile Header -->
-        <div class="mobile-header">
-            
-            <div class="month-selector-widget">
-                <button id="prevMonthBtn" class="btn btn-sm btn-secondary">&lt;</button>
-                <select id="globalMonthSelect" class="form-input" style="padding: 0.2rem; min-width: 130px; border-color: rgba(255,255,255,0.1); font-weight: 600;"></select>
-                <button id="nextMonthBtn" class="btn btn-sm btn-secondary">&gt;</button>
-                <button id="todayMonthBtn" class="btn btn-sm btn-primary">Hoy</button>
-            </div>
-    
-            <div class="mobile-logo" style="display: flex; align-items: center; gap: 0.5rem; font-weight: 700; font-size: 1.1rem; color: #ffffff;">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1"></rect><rect x="14" y="3" width="7" height="5" rx="1"></rect><rect x="14" y="12" width="7" height="9" rx="1"></rect><rect x="3" y="16" width="7" height="5" rx="1"></rect></svg>
-                <span>FINANZAS</span>
-            </div>
-            <div style="display: flex; align-items: center; gap: 0.5rem;">
-                <button id="mobileCloudSyncBtn" class="btn btn-secondary btn-sm db-status-btn offline" style="padding: 0.35rem; border-radius: 6px; color: var(--color-text-light);" title="Configurar Cloud">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
-                </button>
-                <button id="mobileAddCategoryBtn" class="btn btn-primary btn-sm" style="padding: 0.35rem 0.6rem; border-radius: 6px; font-weight: 600; gap: 0.25rem;">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                    <span>Categoría</span>
-                </button>
-            </div>
-        </div>
-
-        <!-- Dashboard Layout -->
-        
-        <div class="global-top-bar" style="position: absolute; top: 10px; right: 20px; z-index: 100;">
-
-            <div class="month-selector-widget">
-                <button id="prevMonthBtn" class="btn btn-sm btn-secondary">&lt;</button>
-                <select id="globalMonthSelect" class="form-input" style="padding: 0.2rem; min-width: 130px; border-color: rgba(255,255,255,0.1); font-weight: 600;"></select>
-                <button id="nextMonthBtn" class="btn btn-sm btn-secondary">&gt;</button>
-                <button id="todayMonthBtn" class="btn btn-sm btn-primary">Hoy</button>
-            </div>
-    
-        </div>
-    
-        <main class="dashboard-layout">
-            
-            <!-- Left/Main Column -->
-            <div class="main-column">
-                <header class="dashboard-header">
-                    <h1 class="dashboard-title">Financial Budget Dashboard</h1>
-                    <span class="dashboard-subtitle">Overview</span>
-                </header>
-
-                <!-- Metrics Grid -->
-                <section class="metrics-grid">
-                    <div class="metric-card income">
-                        <div class="metric-icon-wrapper">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="12" y1="8" x2="12" y2="16"></line><line x1="8" y1="12" x2="16" y2="12"></line></svg>
-                        </div>
-                        <div class="metric-info">
-                            <span class="metric-label">Total Income</span>
-                            <span class="metric-value" id="totalIncomeVal">$0.00</span>
-                            <span class="metric-period">Monthly</span>
-                        </div>
-                    </div>
-                    
-                    <div class="metric-card expenses">
-                        <div class="metric-icon-wrapper">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
-                        </div>
-                        <div class="metric-info">
-                            <span class="metric-label">Total Expenses</span>
-                            <span class="metric-value" id="totalExpensesVal">$0.00</span>
-                            <span class="metric-period">Monthly</span>
-                        </div>
-                    </div>
-
-                    <div class="metric-card balance">
-                        <div class="metric-icon-wrapper">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect><line x1="12" y1="4" x2="12" y2="20"></line><line x1="2" y1="12" x2="22" y2="12"></line></svg>
-                        </div>
-                        <div class="metric-info">
-                            <span class="metric-label">Remaining Balance</span>
-                            <span class="metric-value" id="remainingBalanceVal">$0.00</span>
-                            <span class="metric-period">Monthly</span>
-                        </div>
-                    </div>
-                </section>
-
-                <!-- Budget Overview Card Table -->
-                <section class="card">
-                    <div class="card-header-flex">
-                        <h2 class="card-title">Budget Overview</h2>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <button id="addCategoryBtn" class="btn btn-primary btn-sm">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                Agregar Categoría
-                            </button>
-                            <button id="cloudSyncBtn" class="btn btn-secondary btn-sm db-status-btn offline" style="color: var(--color-text-light);" title="Configurar Sincronización en la Nube">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path></svg>
-                            </button>
-                            <div class="card-options">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="1"></circle><circle cx="19" cy="12" r="1"></circle><circle cx="5" cy="12" r="1"></circle></svg>
-                            </div>
-                        </div>
-                    </div>
-
-                    <div class="table-responsive">
-                        <table class="budget-table" id="budgetTable">
-                            <thead>
-                                <tr>
-                                    <th>Category</th>
-                                    <th>Budgeted</th>
-                                    <th>Difference</th>
-                                </tr>
-                            </thead>
-                            <tbody id="budgetTableBody">
-                                <!-- Dynamically generated via JavaScript -->
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
-        </main>
-
-        <!-- Summary Tab Page (hidden by default) -->
-        <div class="tab-page" id="summaryPage" style="display:none;">
-            <div class="main-column" style="max-width: 100%;">
-                <header class="dashboard-header">
-                    <h1 class="dashboard-title">Summary</h1>
-                    <span class="dashboard-subtitle">Year-End Overview</span>
-                </header>
-
-                <div id="summaryTablesContainer">
-                    <!-- Tables are rendered dynamically by renderSummaryTablesFromData() -->
-                </div>
-
-                <div style="margin-top: 1rem; display: flex; justify-content: flex-start;">
-                    <button class="btn btn-secondary" id="addSummaryTableBtn" style="display:inline-flex; align-items:center; gap:0.4rem; font-weight:600;">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                        Agregar otra tabla
-                    </button>
-                </div>
-
-            </div>
-        </div>
-
-        <!-- Distribución Tab Page (hidden by default) -->
-        <div class="tab-page" id="distribucionPage" style="display:none;">
-            <div class="dist-layout">
-                <header class="dashboard-header">
-                    <h1 class="dashboard-title">Distribución</h1>
-                    <span class="dashboard-subtitle">Monthly Summary</span>
-                </header>
-
-                
-                <div class="card" style="margin-bottom: 1rem;">
-                    <div class="card-header-flex">
-                        <h2 class="card-title">Distribución Anual</h2>
-                        <div style="display: flex; gap: 0.5rem; align-items: center;">
-                            <label style="font-size: 0.8rem; font-weight: bold; display: flex; align-items: center; gap: 5px;">
-                                $ Monto 
-                                <input type="checkbox" id="distGraphToggle" style="transform: scale(1.2);"> 
-                                % Dist
-                            </label>
-                            <button id="resetMonthBtn" class="btn btn-sm btn-secondary" style="color:var(--color-danger); margin-left: 10px;">Restablecer Mes</button>
-                        </div>
-                    </div>
-                    <div id="distribucionGraph" class="dist-graph-container"></div>
-                </div>
-    
-                <div class="dist-grid">
-
-                    <!-- QIK -->
-                    <div class="tarjeta-card dist-card" data-dist-key="qik">
-                        <div class="tarjeta-top">
-                            <div class="tarjeta-meta">
-                                <span class="badge salida">salida</span>
-                                <span class="tarjeta-desc">QIK</span>
-                            </div>
-                            <span class="tarjeta-amount" data-dist-total>$8,429.50</span>
-                        </div>
-                        <div class="tarjeta-bottom">
-                            <button class="status-toggle" data-done="false">
-                                <span class="status-dot"></span>
-                                <span class="status-label">PENDIENTE</span>
-                            </button>
-                        </div>
-                        <div class="tarjeta-composition">
-                            <div class="composition-header">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
-                                Composición
-                            </div>
-                            <div class="comp-rows-container">
-                                <div class="composition-row">
-                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
-                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
-                                    <input type="text" class="comp-amount-input" data-comp-amount placeholder="$0.00" inputmode="decimal">
-                                    <button class="comp-remove-row" title="Eliminar fila">×</button>
-                                </div>
-                            </div>
-                            <button class="comp-add-row-btn">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                Agregar categoría
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- GASTOS M parte 2 -->
-                    <div class="tarjeta-card dist-card" data-dist-key="gastos-m-p2">
-                        <div class="tarjeta-top">
-                            <div class="tarjeta-meta">
-                                <span class="badge entrada">entrada</span>
-                                <span class="tarjeta-desc">GASTOS M parte 2 a Cuenta Corriente popular</span>
-                            </div>
-                            <span class="tarjeta-amount" data-dist-total>$12,000.00</span>
-                        </div>
-                        <div class="tarjeta-bottom">
-                            <button class="status-toggle" data-done="false">
-                                <span class="status-dot"></span>
-                                <span class="status-label">PENDIENTE</span>
-                            </button>
-                        </div>
-                        <div class="tarjeta-composition">
-                            <div class="composition-header">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
-                                Composición
-                            </div>
-                            <div class="comp-rows-container">
-                                <div class="composition-row">
-                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
-                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
-                                    <input type="text" class="comp-amount-input" data-comp-amount placeholder="$0.00" inputmode="decimal">
-                                    <button class="comp-remove-row" title="Eliminar fila">×</button>
-                                </div>
-                            </div>
-                            <button class="comp-add-row-btn">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                Agregar categoría
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- APAP -->
-                    <div class="tarjeta-card dist-card" data-dist-key="apap">
-                        <div class="tarjeta-top">
-                            <div class="tarjeta-meta">
-                                <span class="badge salida">salida</span>
-                                <span class="tarjeta-desc">APAP</span>
-                            </div>
-                            <span class="tarjeta-amount" data-dist-total>$28,165.50</span>
-                        </div>
-                        <div class="tarjeta-bottom">
-                            <button class="status-toggle" data-done="false">
-                                <span class="status-dot"></span>
-                                <span class="status-label">PENDIENTE</span>
-                            </button>
-                        </div>
-                        <div class="tarjeta-composition">
-                            <div class="composition-header">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
-                                Composición
-                            </div>
-                            <div class="comp-rows-container">
-                                <div class="composition-row">
-                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
-                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
-                                    <input type="text" class="comp-amount-input" data-comp-amount placeholder="$0.00" inputmode="decimal">
-                                    <button class="comp-remove-row" title="Eliminar fila">×</button>
-                                </div>
-                            </div>
-                            <button class="comp-add-row-btn">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                Agregar categoría
-                            </button>
-                        </div>
-                    </div>
-
-                    <!-- GASTOS M parte 1 -->
-                    <div class="tarjeta-card dist-card" data-dist-key="gastos-m-p1">
-                        <div class="tarjeta-top">
-                            <div class="tarjeta-meta">
-                                <span class="badge entrada">entrada</span>
-                                <span class="tarjeta-desc">GASTOS M parte 1 a Cuenta Corriente popular</span>
-                            </div>
-                            <span class="tarjeta-amount" data-dist-total>$35,000.00</span>
-                        </div>
-                        <div class="tarjeta-bottom">
-                            <button class="status-toggle" data-done="false">
-                                <span class="status-dot"></span>
-                                <span class="status-label">PENDIENTE</span>
-                            </button>
-                        </div>
-                        <div class="tarjeta-composition">
-                            <div class="composition-header">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path></svg>
-                                Composición
-                            </div>
-                            <div class="comp-rows-container">
-                                <div class="composition-row">
-                                    <select class="comp-select" data-comp-cat><option value="">— Categoría —</option></select>
-                                    <select class="comp-select" data-comp-sub disabled><option value="">— Subcategoría —</option></select>
-                                    <input type="text" class="comp-amount-input" data-comp-amount placeholder="$0.00" inputmode="decimal">
-                                    <button class="comp-remove-row" title="Eliminar fila">×</button>
-                                </div>
-                            </div>
-                            <button class="comp-add-row-btn">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                                Agregar categoría
-                            </button>
-                        </div>
-                    </div>
-
-                </div>
-            </div>
-        </div>
-        <div class="tab-page" id="tarjetasPage" style="display:none;">
-            <div class="main-column" style="max-width: 100%;">
-                <header class="dashboard-header">
-                    <h1 class="dashboard-title">Tarjetas</h1>
-                    <span class="dashboard-subtitle">Estado de pago por moneda</span>
-                </header>
-
-                <section class="card">
-                    <div class="card-header-flex">
-                        <h2 class="card-title">Composición de Tarjetas</h2>
-                    </div>
-                    <div class="tc-table-wrapper">
-                        <table class="tc-table">
-                            <thead>
-                                <tr>
-                                    <th class="tc-th-card">TARJETA C</th>
-                                    <th class="tc-th-currency">USD</th>
-                                    <th class="tc-th-currency">DOP</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                <tr class="tc-row" data-card-key="tc-contigo">
-                                    <td class="tc-name">TC CONTIGO</td>
-                                    <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false" data-currency="usd">
-                                            <span class="status-dot"></span>
-                                            <span class="status-label">PENDIENTE</span>
-                                        </button>
-                                    </td>
-                                    <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false" data-currency="dop">
-                                            <span class="status-dot"></span>
-                                            <span class="status-label">PENDIENTE</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr class="tc-row" data-card-key="tc-jetblue">
-                                    <td class="tc-name">TC JET BLUE</td>
-                                    <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false" data-currency="usd">
-                                            <span class="status-dot"></span>
-                                            <span class="status-label">PENDIENTE</span>
-                                        </button>
-                                    </td>
-                                    <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false" data-currency="dop">
-                                            <span class="status-dot"></span>
-                                            <span class="status-label">PENDIENTE</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                                <tr class="tc-row" data-card-key="tc-apap">
-                                    <td class="tc-name">TC APAP</td>
-                                    <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false" data-currency="usd">
-                                            <span class="status-dot"></span>
-                                            <span class="status-label">PENDIENTE</span>
-                                        </button>
-                                    </td>
-                                    <td class="tc-status-cell">
-                                        <button class="status-toggle" data-done="false" data-currency="dop">
-                                            <span class="status-dot"></span>
-                                            <span class="status-label">PENDIENTE</span>
-                                        </button>
-                                    </td>
-                                </tr>
-                            </tbody>
-                        </table>
-                    </div>
-                </section>
-            </div>
-        </div>
-
-        <!-- Notes Tab Page (hidden by default) -->
-        <div class="tab-page" id="notesPage" style="display:none;">
-            <div class="notes-layout">
-                <div class="notes-main-content">
-                    <header class="dashboard-header">
-                        <h1 class="dashboard-title">Financial</h1>
-                        <span class="dashboard-subtitle">Financial Notes and Annotations Journal</span>
-                    </header>
-                    
-                    <!-- Pinned Notes Section -->
-                    <div class="notes-section">
-                        <h2 class="notes-section-title">Pinned Notes</h2>
-                        <div class="notes-grid" id="pinnedNotesGrid">
-                            <!-- Rendered dynamically via JS -->
-                        </div>
-                    </div>
-                    
-                    <!-- Recent Notes Section -->
-                    <div class="notes-section" style="margin-top: 2rem;">
-                        <h2 class="notes-section-title">Recent Notes</h2>
-                        <div class="notes-grid" id="recentNotesGrid">
-                            <!-- Rendered dynamically via JS -->
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="notes-sidebar-column">
-                    <h2 class="notes-section-title">Quick Links to Recent Transactions</h2>
-                    <div class="transaction-timeline" id="recentTransactionsTimeline">
-                        <!-- Rendered dynamically via JS -->
-                    </div>
-                </div>
-            </div>
-            
-            <!-- Float Add Button -->
-            <button class="fab-btn" id="addNoteFabBtn" title="Agregar Nueva Nota">
-                <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
-                <span>Add New Note</span>
-            </button>
-        </div>
+  <!-- Contenedor Raíz de React -->
+  <div id="root">
+    <div style="min-height: 80vh; display: flex; flex-direction: column; align-items: center; justify-content: center; color: #94a3b8; font-family: 'Outfit', sans-serif;">
+      <div class="spin-loader"></div>
+      <div style="font-size: 18px; font-weight: 600; color: #1e293b;">Cargando Financial Budget Dashboard...</div>
+      <div style="font-size: 13px; margin-top: 6px; color: #64748b;">Inicializando motor de cálculo y componentes React</div>
     </div>
+  </div>
 
-    <!-- Mobile Bottom Navigation Bar -->
-    <nav class="bottom-nav">
-        <div class="bottom-nav-item active" data-tab="overview">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7"></rect><rect x="14" y="3" width="7" height="7"></rect><rect x="14" y="14" width="7" height="7"></rect><rect x="3" y="14" width="7" height="7"></rect></svg>
-            <span>Overview</span>
-        </div>
-        <div class="bottom-nav-item" data-tab="summary">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg>
-            <span>Summary</span>
-        </div>
-        <div class="bottom-nav-item" data-tab="distribucion">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="18" r="3"></circle><circle cx="6" cy="6" r="3"></circle><path d="M13 6h3a2 2 0 0 1 2 2v7"></path><line x1="6" y1="9" x2="6" y2="21"></line></svg>
-            <span>Distribución</span>
-        </div>
-        <div class="bottom-nav-item" data-tab="tarjetas">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect><line x1="2" y1="10" x2="22" y2="10"></line></svg>
-            <span>Tarjetas</span>
-        </div>
-        <div class="bottom-nav-item" data-tab="settings">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
-            <span>Settings</span>
-        </div>
-        <div class="bottom-nav-item" data-tab="notes">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-            <span>Notes</span>
-        </div>
-    </nav>
+  <!-- 1. Motor Maestro de Datos, Cálculos y Conexión Cloud -->
+  <script src="MAESTRO.js"></script>
 
-    <!-- Add Category Modal -->
-    <div class="modal-overlay" id="addCategoryModal">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3>Agregar Categoría</h3>
-                <button class="modal-close" id="closeModalBtn" aria-label="Cerrar modal">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-            <form id="addCategoryForm">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="newCatName">Nombre de la Categoría</label>
-                        <input type="text" id="newCatName" class="form-input" placeholder="Ej. Comida, Gimnasio" required autocomplete="off">
-                    </div>
-                    <div class="form-group">
-                        <label for="newCatBudget">Presupuesto Inicial ($)</label>
-                        <input type="number" id="newCatBudget" class="form-input" placeholder="0" min="0" step="any" required value="0">
-                    </div>
-                    <div class="form-group">
-                        <label for="newCatParent">Categoría Padre (Opcional)</label>
-                        <select id="newCatParent" class="form-input">
-                            <option value="">Ninguna (Nivel Superior)</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" id="cancelModalBtn">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Guardar</button>
-                </div>
-            </form>
-        </div>
-    </div>
+  <!-- 2. Aplicación Maestra en React (JSX) -->
+  <script type="text/babel" src="MAESTRO.jsx"></script>
 
-    <!-- Database Configuration Modal -->
-    <div class="modal-overlay" id="dbConfigModal">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3>Base de Datos Cloud</h3>
-                <button class="modal-close" id="closeDbModalBtn" aria-label="Cerrar modal">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-            <form id="dbConfigForm">
-                <div class="modal-body">
-                    <p style="font-size: 0.825rem; color: var(--color-text-muted); margin-bottom: 0.5rem; line-height: 1.4;">
-                        Configura un backend en la nube con Google Apps Script para guardar tu presupuesto en Google Sheets.
-                    </p>
-                    <div class="form-group">
-                        <label for="gasUrlInput">URL de Google Apps Script Web App</label>
-                        <input type="url" id="gasUrlInput" class="form-input" placeholder="https://script.google.com/macros/s/.../exec" autocomplete="off" style="font-size: 0.8rem;">
-                    </div>
-                    <div style="font-size: 0.775rem; color: var(--color-text-light);">
-                        Deje este campo vacío para usar el almacenamiento local de su navegador (localStorage).
-                    </div>
+  <!-- Script de detección para protocolo file:// con instrucciones en caso de bloqueo CORS local del navegador -->
+  <script>
+    window.addEventListener('DOMContentLoaded', () => {
+      setTimeout(() => {
+        const root = document.getElementById('root');
+        if (root && root.querySelector('.spin-loader')) {
+          if (window.location.protocol === 'file:') {
+            root.innerHTML = `
+              <div style="max-width: 620px; margin: 80px auto; padding: 30px; background: #ffffff; border: 1px solid rgba(245, 158, 11, 0.4); border-radius: 16px; color: #1e293b; font-family: 'Outfit', sans-serif; box-shadow: 0 10px 30px rgba(0,0,0,0.08);">
+                <div style="display: flex; align-items: center; gap: 12px; margin-bottom: 16px;">
+                  <span style="font-size: 28px;">💡</span>
+                  <h2 style="margin: 0; font-size: 20px; color: #d97706;">Apertura local detectada (file://)</h2>
                 </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" id="cancelDbModalBtn">Cancelar</button>
-                    <button type="submit" class="btn btn-primary">Conectar y Guardar</button>
+                <p style="color: #64748b; font-size: 14px; line-height: 1.6; margin-bottom: 16px;">
+                  Has abierto el archivo directamente desde el explorador de archivos. Los navegadores modernos bloquean la lectura de archivos <code>.jsx</code> externos bajo <code>file:///</code> por seguridad CORS.
+                </p>
+                <div style="background: #f8fafc; padding: 14px 18px; border-radius: 8px; border: 1px solid #e2e8f0; font-family: monospace; font-size: 13px; margin-bottom: 16px;">
+                  <div style="color: #64748b; margin-bottom: 6px;">// Para correr localmente abre la terminal en esta carpeta y ejecuta:</div>
+                  <div style="color: #0284c7; font-weight: bold;">npx serve .</div>
+                  <div style="color: #64748b; margin-top: 8px; margin-bottom: 6px;">// O con la extensión Live Server de VS Code:</div>
+                  <div style="color: #10b981; font-weight: bold;">Clic derecho en index.html → "Open with Live Server"</div>
                 </div>
-            </form>
-        </div>
-    </div>
-
-    <!-- Add/Edit Note Modal -->
-    <div class="modal-overlay" id="noteModal">
-        <div class="modal-card">
-            <div class="modal-header">
-                <h3 id="noteModalTitle">Agregar Nota</h3>
-                <button class="modal-close" id="closeNoteModalBtn" aria-label="Cerrar modal">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-                </button>
-            </div>
-            <form id="noteForm">
-                <input type="hidden" id="noteIdInput">
-                <div class="modal-body">
-                    <div class="form-group">
-                        <label for="noteTitleInput">Título</label>
-                        <input type="text" id="noteTitleInput" class="form-input" placeholder="Ej. Estrategia de Inversión" required autocomplete="off">
-                    </div>
-                    <div style="display: flex; gap: 1rem;">
-                        <div class="form-group" style="flex: 1;">
-                            <label for="noteTagInput">Tag / Tipo</label>
-                            <select id="noteTagInput" class="form-input">
-                                <option value="STRATEGY">STRATEGY</option>
-                                <option value="GOAL">GOAL</option>
-                                <option value="REMINDER">REMINDER</option>
-                                <option value="IDEA">IDEA</option>
-                            </select>
-                        </div>
-                        <div class="form-group" style="flex: 1;">
-                            <label for="noteDateInput">Fecha</label>
-                            <input type="text" id="noteDateInput" class="form-input" placeholder="DD/MM/YYYY" required autocomplete="off">
-                        </div>
-                    </div>
-                    <div class="form-group">
-                        <label for="noteContentInput">Contenido</label>
-                        <textarea id="noteContentInput" class="form-input" placeholder="Escribe el contenido de la nota aquí..." rows="4" required style="resize: vertical; font-family: inherit; font-size: 0.9rem; padding: 0.5rem;"></textarea>
-                    </div>
-                    <div class="form-group">
-                        <label for="noteDetailsInput">Detalles adicionales / Notas (Opcional)</label>
-                        <input type="text" id="noteDetailsInput" class="form-input" placeholder="Ej. Reunión con asesor, tasa actual 5.5%..." autocomplete="off">
-                    </div>
-                    <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-top: 0.25rem;">
-                        <input type="checkbox" id="notePinnedInput" style="width: 16px; height: 16px; cursor: pointer;">
-                        <label for="notePinnedInput" style="cursor: pointer; user-select: none; font-size: 0.8rem; font-weight: 600; color: var(--color-text-muted);">Fijar nota (Pinned)</label>
-                    </div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" id="cancelNoteModalBtn">Cancelar</button>
-                    <button type="submit" class="btn btn-primary" id="saveNoteBtn">Guardar</button>
-                </div>
-            </form>
-        </div>
-    </div>
-
-    <script src="src/js/app.js"></script>
+                <p style="color: #64748b; font-size: 13px; line-height: 1.5; margin: 0;">
+                  En producción (Vercel, GitHub Pages) o cualquier servidor HTTP local, la aplicación carga de forma instantánea.
+                </p>
+              </div>
+            `;
+          }
+        }
+      }, 2500);
+    });
+  </script>
 </body>
 </html>
