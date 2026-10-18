@@ -408,6 +408,7 @@
 
             {activeTab === 'summary' && (
               <TabSummary
+                currentMonth={currentMonth}
                 summaryTables={appExtra.summaryTables || []}
                 onUpdateSummaryTables={(newTables) => {
                   updateCurrentMonthData(undefined, { ...appExtra, summaryTables: newTables });
@@ -844,7 +845,19 @@
   // ============================================================================
   // VISTA 2: RESUMEN
   // ============================================================================
-  function TabSummary({ summaryTables, onUpdateSummaryTables }) {
+  // Año de una tabla de resumen: el que lleva en el título ("Year-End Summary 2026") o null
+  const summaryYear = (table) => {
+    const m = /\b(20\d{2})\b/.exec(table.title || '');
+    return m ? m[1] : null;
+  };
+
+  function TabSummary({ currentMonth, summaryTables, onUpdateSummaryTables }) {
+    const [pickedId, setPickedId] = useState(null);
+    // Se muestra una sola tabla: la elegida, si no la del año que se está viendo, si no la última
+    const selected = summaryTables.find(t => t.id === pickedId)
+      || summaryTables.find(t => summaryYear(t) === currentMonth.slice(0, 4))
+      || summaryTables[summaryTables.length - 1];
+    const visibleTables = selected ? [selected] : [];
     const updateTable = (tableId, fn) => onUpdateSummaryTables(summaryTables.map(t => t.id === tableId ? fn(t) : t));
 
     const handleRowChange = (tableId, rowIndex, field, value) => updateTable(tableId, t => {
@@ -860,17 +873,22 @@
     const handleDeleteTable = (table) => {
       if (window.confirm(`¿Eliminar la tabla "${table.title}"?`)) {
         onUpdateSummaryTables(summaryTables.filter(t => t.id !== table.id));
+        setPickedId(null);
       }
     };
 
     const handleAddTable = () => {
+      const years = summaryTables.map(summaryYear).filter(Boolean).map(Number);
+      const nextYear = years.length ? Math.max(...years) + 1 : Number(currentMonth.slice(0, 4));
       const baseRows = (summaryTables[0] && summaryTables[0].rows) || FM.DEFAULT_SUMMARY_ROWS;
+      const id = 'summary-' + Date.now();
       onUpdateSummaryTables([...summaryTables, {
-        id: 'summary-' + Date.now(),
-        title: `Resumen ${summaryTables.length + 1}`,
+        id,
+        title: `Year-End Summary ${nextYear}`,
         editable: true,
         rows: baseRows.map(r => ({ category: r.category, amount: 0, destino: '' }))
       }]);
+      setPickedId(id);
     };
 
     return (
@@ -881,7 +899,22 @@
           </div>
         )}
 
-        {summaryTables.map(table => (
+        {summaryTables.length > 0 && (
+          <div className="year-switch" role="group" aria-label="Año del resumen">
+            <div className="segmented">
+              {summaryTables.map(t => (
+                <button key={t.id} type="button" aria-pressed={selected && selected.id === t.id} onClick={() => setPickedId(t.id)}>
+                  {summaryYear(t) || t.title || 'Resumen'}
+                </button>
+              ))}
+            </div>
+            <button type="button" className="btn btn-ghost btn-sm" onClick={handleAddTable}>
+              <Icons.Plus /> Nuevo año
+            </button>
+          </div>
+        )}
+
+        {visibleTables.map(table => (
           <section key={table.id} className="panel">
             <div className="section-head">
               <input
@@ -949,9 +982,11 @@
           </section>
         ))}
 
-        <button type="button" className="btn btn-secondary" onClick={handleAddTable}>
-          <Icons.Plus /> Nueva tabla de resumen
-        </button>
+        {summaryTables.length === 0 && (
+          <button type="button" className="btn btn-secondary" onClick={handleAddTable}>
+            <Icons.Plus /> Nueva tabla de resumen
+          </button>
+        )}
       </div>
     );
   }

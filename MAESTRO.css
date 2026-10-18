@@ -250,6 +250,10 @@ button:disabled { cursor: not-allowed; }
 }
 .segmented button[aria-pressed="true"] { background: var(--surface); color: var(--ink); font-weight: 600; box-shadow: var(--shadow-sm); }
 
+/* Selector de año del resumen */
+.year-switch { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.year-switch .segmented { flex-wrap: wrap; }
+
 /* Estado de sincronización */
 .sync {
   display: inline-flex; align-items: center; gap: 8px;
