@@ -2,7 +2,7 @@
  * Backend de Finanzas en Google Apps Script.
  * Implementar como aplicación web: "Ejecutar como: yo" y "Quién tiene acceso: cualquier usuario".
  *
- * - Presupuesto (hoja "Presupuestos"): doGet / doPost sin acción, como siempre.
+ * - Presupuesto (hojas "Presupuestos" y "Compartido"): doGet / doPost sin acción.
  * - Movimientos de tarjetas (hoja "Movimientos"): doPost con action "txLoad" o "txSave".
  *   Solo responde si la petición trae un token de Google del dueño de esta hoja,
  *   emitido para el Client ID de la app (la URL del script es pública).
@@ -26,55 +26,110 @@ function doPost(e) {
   }
 }
 
-// --- PRESUPUESTO (sin cambios de formato) ---
-function savePresupuesto_(data) {
-  var ss = SpreadsheetApp.openById(SHEET_ID);
-  var sheet = ss.getSheetByName('Presupuestos');
-  if (!sheet) {
-    sheet = ss.insertSheet('Presupuestos');
-    sheet.appendRow(['Mes (YYYY-MM)', 'Categorias JSON', 'Extra JSON', 'Ultima Actualizacion']);
-  }
+// --- PRESUPUESTO ---
+// Hoja "Presupuestos": una fila por mes. La columna A se guarda como texto: si no, Sheets
+// convierte "2026-10" en fecha y la app deja de reconocer los meses al leerlos.
+// Hoja "Compartido": datos que no dependen del mes (notas y pagos marcados a mano).
+// En ambas gana la versión con "lastSaved" más reciente, así un dispositivo desactualizado
+// no pisa lo que otro guardó.
+var BUDGET_SHEET = 'Presupuestos';
+var BUDGET_HEADER = ['Mes (YYYY-MM)', 'Categorias JSON', 'Extra JSON', 'Ultima Actualizacion'];
+var SHARED_SHEET = 'Compartido';
 
-  var byMonth = data.byMonth; // { "YYYY-MM": { categories: [...], extra: {...} } }
-  if (byMonth) {
-    var existingData = sheet.getDataRange().getValues();
-    var monthRowMap = {};
-    for (var i = 1; i < existingData.length; i++) {
-      monthRowMap[existingData[i][0]] = i + 1;
+function monthKey_(value, tz) {
+  if (value instanceof Date) return Utilities.formatDate(value, tz, 'yyyy-MM');
+  return String(value || '').trim();
+}
+
+function lastSavedOf_(extra) {
+  return (extra && Number(extra.lastSaved)) || 0;
+}
+
+// { "YYYY-MM": { categories, extra, updated } }; si un mes se repite gana el más reciente
+function readBudgetRows_(sheet, tz) {
+  var months = {};
+  if (!sheet) return months;
+  var values = sheet.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    var key = monthKey_(values[i][0], tz);
+    if (!/^\d{4}-\d{2}$/.test(key)) continue;
+    try {
+      var month = { categories: JSON.parse(values[i][1] || '[]'), extra: JSON.parse(values[i][2] || '{}'), updated: values[i][3] };
+      if (!months[key] || lastSavedOf_(month.extra) >= lastSavedOf_(months[key].extra)) months[key] = month;
+    } catch (err) {
+      // Ignorar filas con JSON dañado
     }
-    var timestamp = new Date();
-    for (var monthKey in byMonth) {
-      var monthData = byMonth[monthKey];
-      var catJson = JSON.stringify(monthData.categories || []);
-      var extraJson = JSON.stringify(monthData.extra || {});
-      if (monthRowMap[monthKey]) {
-        sheet.getRange(monthRowMap[monthKey], 2, 1, 3).setValues([[catJson, extraJson, timestamp]]);
-      } else {
-        sheet.appendRow([monthKey, catJson, extraJson, timestamp]);
+  }
+  return months;
+}
+
+function readShared_(ss) {
+  var sheet = ss.getSheetByName(SHARED_SHEET);
+  if (!sheet) return null;
+  var values = sheet.getDataRange().getValues();
+  for (var i = 1; i < values.length; i++) {
+    if (values[i][0] === 'shared') {
+      try { return JSON.parse(values[i][1] || 'null'); } catch (err) { return null; }
+    }
+  }
+  return null;
+}
+
+function savePresupuesto_(data) {
+  var lock = LockService.getScriptLock();
+  lock.waitLock(20000);
+  try {
+    var ss = SpreadsheetApp.openById(SHEET_ID);
+    var tz = ss.getSpreadsheetTimeZone();
+    var now = new Date();
+
+    var byMonth = data.byMonth; // { "YYYY-MM": { categories: [...], extra: {...} } }
+    if (byMonth) {
+      var sheet = ss.getSheetByName(BUDGET_SHEET) || ss.insertSheet(BUDGET_SHEET);
+      var months = readBudgetRows_(sheet, tz);
+      Object.keys(byMonth).forEach(function (key) {
+        if (!/^\d{4}-\d{2}$/.test(key)) return;
+        var incoming = byMonth[key] || {};
+        var current = months[key];
+        if (current && lastSavedOf_(incoming.extra) < lastSavedOf_(current.extra)) return;
+        months[key] = { categories: incoming.categories || [], extra: incoming.extra || {}, updated: now };
+      });
+
+      var rows = [BUDGET_HEADER];
+      Object.keys(months).sort().forEach(function (key) {
+        var m = months[key];
+        rows.push([key, JSON.stringify(m.categories), JSON.stringify(m.extra), m.updated || now]);
+      });
+      sheet.clearContents();
+      sheet.getRange(1, 1, sheet.getMaxRows(), 1).setNumberFormat('@');
+      sheet.getRange(1, 1, rows.length, 4).setValues(rows);
+    }
+
+    if (data.shared && typeof data.shared === 'object') {
+      var current = readShared_(ss);
+      if (!current || (Number(data.shared.lastSaved) || 0) >= (Number(current.lastSaved) || 0)) {
+        var sharedSheet = ss.getSheetByName(SHARED_SHEET) || ss.insertSheet(SHARED_SHEET);
+        sharedSheet.clearContents();
+        sharedSheet.getRange(1, 1, 2, 3).setValues([
+          ['Clave', 'Datos JSON', 'Ultima Actualizacion'],
+          ['shared', JSON.stringify(data.shared), now]
+        ]);
       }
     }
+    return jsonOut_({ status: 'success' });
+  } finally {
+    lock.releaseLock();
   }
-  return jsonOut_({ status: 'success' });
 }
 
 function doGet(e) {
   var ss = SpreadsheetApp.openById(SHEET_ID);
-  var sheet = ss.getSheetByName('Presupuestos');
-  if (!sheet) return jsonOut_({ byMonth: {} });
-
-  var existingData = sheet.getDataRange().getValues();
+  var months = readBudgetRows_(ss.getSheetByName(BUDGET_SHEET), ss.getSpreadsheetTimeZone());
   var byMonth = {};
-  for (var i = 1; i < existingData.length; i++) {
-    var row = existingData[i];
-    if (row[0]) {
-      try {
-        byMonth[row[0]] = { categories: JSON.parse(row[1] || '[]'), extra: JSON.parse(row[2] || '{}') };
-      } catch (err) {
-        // Ignorar filas con JSON dañado
-      }
-    }
-  }
-  return jsonOut_({ byMonth: byMonth });
+  Object.keys(months).forEach(function (key) {
+    byMonth[key] = { categories: months[key].categories, extra: months[key].extra };
+  });
+  return jsonOut_({ byMonth: byMonth, shared: readShared_(ss) });
 }
 
 // --- MOVIMIENTOS DE TARJETAS (protegidos) ---

@@ -103,6 +103,9 @@
   function FinancialBudgetDashboard() {
     // 1. Estado Maestro
     const [byMonth, setByMonth] = useState(() => FM.loadInitialByMonthState());
+    // Notas y pagos marcados a mano: no dependen del mes. null = aún sin guardar (se derivan de los meses)
+    const [storedShared, setStoredShared] = useState(() => FM.loadStoredShared());
+    const shared = useMemo(() => storedShared || FM.deriveSharedFromMonths(byMonth), [storedShared, byMonth]);
     const [currentMonth, setCurrentMonth] = useState(() => FM.getCurrentYYYYMM());
     const [activeTab, setActiveTab] = useState(() => {
       const fromHash = (window.location.hash || '').slice(1);
@@ -125,6 +128,13 @@
 
     const hasLoadedFromCloudRef = useRef(false);
     const saveTimeoutRef = useRef(null);
+    // Lo último que hay que subir a la nube (el guardado espera 500 ms)
+    const byMonthRef = useRef(byMonth);
+    const storedSharedRef = useRef(storedShared);
+    const currentMonthRef = useRef(currentMonth);
+    byMonthRef.current = byMonth;
+    storedSharedRef.current = storedShared;
+    currentMonthRef.current = currentMonth;
     const toastTimeoutRef = useRef(null);
 
     const notify = useCallback((message, tone = 'info') => {
@@ -159,26 +169,43 @@
     const metrics = useMemo(() => FM.computeMetrics(categories), [categories]);
 
     // 2. Persistencia en localStorage y Google Apps Script
+    const flushCloudSave = useCallback(async () => {
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = null;
+      if (!gasUrl) return;
+      try {
+        const all = byMonthRef.current;
+        const currentObj = all[currentMonthRef.current] || {};
+        await FM.saveToGAS(gasUrl, all, currentObj.categories, currentObj.extra, storedSharedRef.current);
+        setDbStatus('connected');
+      } catch (err) {
+        console.error('Error sincronizando con Google Apps Script:', err);
+        setDbStatus('error');
+      }
+    }, [gasUrl]);
+
+    // Sincronización en la nube con espera de 500 ms
+    const scheduleCloudSave = useCallback(() => {
+      if (!gasUrl) return;
+      setDbStatus('syncing');
+      clearTimeout(saveTimeoutRef.current);
+      saveTimeoutRef.current = setTimeout(flushCloudSave, 500);
+    }, [gasUrl, flushCloudSave]);
+
     const persistState = useCallback((updatedByMonth) => {
+      byMonthRef.current = updatedByMonth;
       setByMonth(updatedByMonth);
       FM.safeStorage.set(FM.STORAGE_KEY_BY_MONTH, JSON.stringify(updatedByMonth));
+      scheduleCloudSave();
+    }, [scheduleCloudSave]);
 
-      // Sincronización en la nube con espera de 500 ms
-      if (gasUrl) {
-        setDbStatus('syncing');
-        clearTimeout(saveTimeoutRef.current);
-        saveTimeoutRef.current = setTimeout(async () => {
-          try {
-            const currentObj = updatedByMonth[currentMonth] || {};
-            await FM.saveToGAS(gasUrl, updatedByMonth, currentObj.categories, currentObj.extra);
-            setDbStatus('connected');
-          } catch (err) {
-            console.error('Error sincronizando con Google Apps Script:', err);
-            setDbStatus('error');
-          }
-        }, 500);
-      }
-    }, [currentMonth, gasUrl]);
+    const updateShared = useCallback((changes) => {
+      const next = { ...shared, ...changes, lastSaved: Date.now() };
+      storedSharedRef.current = next;
+      setStoredShared(next);
+      FM.storeShared(next);
+      scheduleCloudSave();
+    }, [shared, scheduleCloudSave]);
 
     // Actualizador específico para el mes en curso
     const updateCurrentMonthData = useCallback((newCategories, newExtra) => {
@@ -207,6 +234,11 @@
           FM.safeStorage.set(FM.STORAGE_KEY_BY_MONTH, JSON.stringify(merged));
           return merged;
         });
+        setStoredShared(prev => {
+          const merged = FM.mergeCloudShared(prev, cloudData && cloudData.shared);
+          if (merged && merged !== prev) FM.storeShared(merged);
+          return merged;
+        });
         setDbStatus('connected');
         return true;
       } catch (err) {
@@ -230,6 +262,28 @@
       hasLoadedFromCloudRef.current = true;
       pullFromCloud();
     }, [gasUrl, pullFromCloud]);
+
+    // El celular deja la app abierta en segundo plano: al volver a ella se relee la nube
+    // para ver lo que se cambió en otro dispositivo. Al salir se sube lo pendiente.
+    const lastPullRef = useRef(Date.now());
+    useEffect(() => {
+      if (!gasUrl) return undefined;
+      const onVisibility = () => {
+        if (document.visibilityState === 'hidden') {
+          if (saveTimeoutRef.current) flushCloudSave();
+          return;
+        }
+        if (Date.now() - lastPullRef.current < 15000) return;
+        lastPullRef.current = Date.now();
+        pullFromCloud();
+      };
+      document.addEventListener('visibilitychange', onVisibility);
+      window.addEventListener('focus', onVisibility);
+      return () => {
+        document.removeEventListener('visibilitychange', onVisibility);
+        window.removeEventListener('focus', onVisibility);
+      };
+    }, [gasUrl, pullFromCloud, flushCloudSave]);
 
     // 4. Cambiar mes
     const switchMonth = useCallback((targetMonth) => {
@@ -381,22 +435,18 @@
                 currentMonth={currentMonth}
                 gasUrl={gasUrl}
                 notify={notify}
-                tarjetasData={appExtra.tarjetas || {}}
-                onUpdateTarjetas={(newTarjetas) => {
-                  updateCurrentMonthData(undefined, { ...appExtra, tarjetas: newTarjetas });
-                }}
+                cardPayments={shared.cardPayments}
+                onUpdateCardPayments={(cardPayments) => updateShared({ cardPayments })}
               />
             )}
 
             {activeTab === 'notes' && (
               <TabNotes
-                notes={appExtra.notes || []}
+                notes={shared.notes}
                 distribucionData={appExtra.distribucion || {}}
                 onOpenAddNote={() => setModalState({ type: 'note', data: null })}
                 onOpenEditNote={(note) => setModalState({ type: 'note', data: note })}
-                onUpdateNotes={(newNotes) => {
-                  updateCurrentMonthData(undefined, { ...appExtra, notes: newNotes });
-                }}
+                onUpdateNotes={(notes) => updateShared({ notes })}
                 onNavigateToDist={(key) => {
                   goToTab('distribucion');
                   setTimeout(() => {
@@ -434,7 +484,11 @@
                     return;
                   }
                   if (window.confirm('¿Reemplazar todos los datos actuales con este respaldo?')) {
-                    persistState(importedByMonth);
+                    const stamped = {};
+                    Object.keys(importedByMonth).forEach(m => {
+                      stamped[m] = { ...importedByMonth[m], extra: { ...(importedByMonth[m].extra || {}), lastSaved: Date.now() } };
+                    });
+                    persistState(stamped);
                     notify('Respaldo restaurado.', 'ok');
                   }
                 }}
@@ -491,12 +545,12 @@
             initialNote={modalState.data}
             onClose={closeModal}
             onSaveNote={(noteToSave) => {
-              const currentNotes = appExtra.notes || [];
+              const currentNotes = shared.notes;
               const exists = currentNotes.some(n => n.id === noteToSave.id);
               const nextNotes = exists
                 ? currentNotes.map(n => n.id === noteToSave.id ? noteToSave : n)
                 : [noteToSave, ...currentNotes];
-              updateCurrentMonthData(undefined, { ...appExtra, notes: nextNotes });
+              updateShared({ notes: nextNotes });
               closeModal();
             }}
           />
@@ -1077,7 +1131,7 @@
 
   const DETAIL_KEY = 'mov_detail_open';
 
-  function TabTarjetas({ currentMonth, gasUrl, notify, tarjetasData, onUpdateTarjetas }) {
+  function TabTarjetas({ currentMonth, gasUrl, notify, cardPayments, onUpdateCardPayments }) {
     const [store, setStore] = useState(() => FB.loadStore());
     const [cardFilter, setCardFilter] = useState('all');
     const [detailOpen, setDetailOpenState] = useState(() => FM.safeStorage.get(DETAIL_KEY) === '1');
@@ -1104,8 +1158,8 @@
           currentMonth={currentMonth}
           store={store}
           movements={movements}
-          tarjetasData={tarjetasData}
-          onUpdateTarjetas={onUpdateTarjetas}
+          cardPayments={cardPayments}
+          onUpdateCardPayments={onUpdateCardPayments}
           onShowMovements={showCardMovements}
         />
         <CardMovements
@@ -1585,7 +1639,7 @@
     );
   };
 
-  function CreditCards({ currentMonth, store, movements, tarjetasData, onUpdateTarjetas, onShowMovements }) {
+  function CreditCards({ currentMonth, store, movements, cardPayments, onUpdateCardPayments, onShowMovements }) {
     const today = new Date();
     const todayMonth = FM.getCurrentYYYYMM();
     const storeCards = FB.getCards(store);
@@ -1598,7 +1652,7 @@
       const dueMonth = currentMonth === todayMonth ? FB.nextDueMonth(cfg, today) : currentMonth;
       const cycle = FB.cardCycle(cfg, { movements, cardIds, dueMonth, today, autoPay: cfg.autoPay });
 
-      const manual = ((tarjetasData[cfg.key] || {}).manual || {})[dueMonth] || {};
+      const manual = (cardPayments[cfg.key] || {})[dueMonth] || {};
       const status = {};
       const manualFlag = {};
       ['DOP', 'USD'].forEach(cur => {
@@ -1612,12 +1666,11 @@
     });
 
     const toggleManual = (item, currency) => {
-      const prev = tarjetasData[item.cfg.key] || {};
-      const manualAll = { ...(prev.manual || {}) };
-      const forMonth = { ...(manualAll[item.dueMonth] || {}) };
+      const forCard = { ...(cardPayments[item.cfg.key] || {}) };
+      const forMonth = { ...(forCard[item.dueMonth] || {}) };
       forMonth[currency] = !forMonth[currency];
-      manualAll[item.dueMonth] = forMonth;
-      onUpdateTarjetas({ ...tarjetasData, [item.cfg.key]: { ...prev, manual: manualAll } });
+      forCard[item.dueMonth] = forMonth;
+      onUpdateCardPayments({ ...cardPayments, [item.cfg.key]: forCard });
     };
 
     const upToDateCount = items.filter(i => i.upToDate).length;

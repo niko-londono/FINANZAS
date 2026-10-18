@@ -19,6 +19,7 @@
   const STORAGE_KEY_BY_MONTH = 'budget_by_month';
   const STORAGE_KEY_GAS_URL = 'gas_api_url';
   const STORAGE_KEY_COLLAPSED = 'collapsed_categories';
+  const STORAGE_KEY_SHARED = 'finanzas_shared';
 
   // Categorías base predeterminadas
   const DEFAULT_CATEGORIES = [
@@ -397,10 +398,37 @@
     return Object.keys(obj).every(k => /^\d{4}-\d{2}$/.test(k) && obj[k] && Array.isArray(obj[k].categories));
   }
 
+  // Google Sheets convierte "2026-10" en fecha y el script antiguo la devolvía como texto
+  // ("Thu Oct 01 2026 00:00:00 GMT-0400 ..."). Devuelve "AAAA-MM" o null.
+  const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  function normalizeMonthKey(key) {
+    const text = String(key || '').trim();
+    if (/^\d{4}-\d{2}$/.test(text)) return text;
+    const m = text.match(/^[A-Za-z]{3} ([A-Za-z]{3}) \d{1,2} (\d{4})\b/);
+    const idx = m ? MONTH_ABBR.indexOf(m[1]) : -1;
+    return idx === -1 ? null : `${m[2]}-${String(idx + 1).padStart(2, '0')}`;
+  }
+
+  function monthLastSaved(month) {
+    return (month && month.extra && month.extra.lastSaved) || 0;
+  }
+
+  // Normaliza las claves de mes; si una se repite, gana la versión guardada más tarde
+  function normalizeCloudMonths(loaded) {
+    if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) return loaded;
+    const out = {};
+    Object.keys(loaded).forEach(k => {
+      const key = normalizeMonthKey(k);
+      if (!key) return;
+      if (!out[key] || monthLastSaved(loaded[k]) >= monthLastSaved(out[key])) out[key] = loaded[k];
+    });
+    return out;
+  }
+
   // Une los meses de la nube con los locales: por mes gana la versión con lastSaved más reciente
   // (la nube gana en empate). Devuelve null si la respuesta no trae meses válidos.
   function mergeCloudByMonth(localByMonth, cloudData, currentMonth) {
-    let loaded = cloudData && cloudData.byMonth;
+    let loaded = normalizeCloudMonths(cloudData && cloudData.byMonth);
 
     // Retrocompatibilidad con el script antiguo (todo en la celda A1)
     if (!loaded && cloudData && (Array.isArray(cloudData) || cloudData.categories || cloudData.extra)) {
@@ -421,11 +449,68 @@
     Object.keys(loaded).forEach(m => {
       const cloudMonth = loaded[m];
       const localMonth = merged[m];
-      const localTs = (localMonth && localMonth.extra && localMonth.extra.lastSaved) || 0;
-      const cloudTs = (cloudMonth.extra && cloudMonth.extra.lastSaved) || 0;
-      if (!localMonth || cloudTs >= localTs) merged[m] = cloudMonth;
+      if (!localMonth || monthLastSaved(cloudMonth) >= monthLastSaved(localMonth)) merged[m] = cloudMonth;
     });
     return merged;
+  }
+
+  // --- 5b. DATOS COMPARTIDOS ENTRE MESES ---
+  // Las notas y los pagos de tarjeta marcados a mano no dependen del mes que se está viendo:
+  // { notes: [...], cardPayments: { [tarjeta]: { [mes de vencimiento]: { DOP, USD } } }, lastSaved }
+
+  function normalizeShared(shared) {
+    if (!shared || typeof shared !== 'object' || !Array.isArray(shared.notes)) return null;
+    return {
+      notes: shared.notes,
+      cardPayments: shared.cardPayments && typeof shared.cardPayments === 'object' ? shared.cardPayments : {},
+      lastSaved: Number(shared.lastSaved) || 0
+    };
+  }
+
+  function loadStoredShared() {
+    const raw = safeStorage.get(STORAGE_KEY_SHARED);
+    if (!raw) return null;
+    try {
+      return normalizeShared(JSON.parse(raw));
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function storeShared(shared) {
+    safeStorage.set(STORAGE_KEY_SHARED, JSON.stringify(shared));
+  }
+
+  // Antes se guardaban dentro de cada mes: notas del mes editado más recientemente
+  // y marcas de pago de todos los meses. lastSaved 0 para que la nube tenga prioridad.
+  function deriveSharedFromMonths(byMonth) {
+    const months = Object.keys(byMonth || {})
+      .sort((a, b) => monthLastSaved(byMonth[a]) - monthLastSaved(byMonth[b]) || a.localeCompare(b));
+    let notes = null;
+    const cardPayments = {};
+    months.forEach(m => {
+      const extra = (byMonth[m] && byMonth[m].extra) || {};
+      if (Array.isArray(extra.notes) && (extra.lastSaved || 0) > 0) notes = extra.notes;
+      Object.keys(extra.tarjetas || {}).forEach(card => {
+        const manual = extra.tarjetas[card] && extra.tarjetas[card].manual;
+        if (manual && typeof manual === 'object') cardPayments[card] = { ...(cardPayments[card] || {}), ...manual };
+      });
+    });
+    if (!notes) {
+      const current = byMonth && byMonth[getCurrentYYYYMM()];
+      notes = (current && current.extra && Array.isArray(current.extra.notes))
+        ? current.extra.notes
+        : JSON.parse(JSON.stringify(DEFAULT_NOTES));
+    }
+    return { notes, cardPayments, lastSaved: 0 };
+  }
+
+  // Devuelve la versión de la nube si es igual o más reciente que la local; si no, la local
+  function mergeCloudShared(localShared, cloudShared) {
+    const cloud = normalizeShared(cloudShared);
+    if (!cloud) return localShared;
+    if (localShared && localShared.lastSaved > cloud.lastSaved) return localShared;
+    return cloud;
   }
 
   function loadInitialByMonthState() {
@@ -495,22 +580,26 @@
     return data;
   }
 
-  async function saveToGAS(apiUrl, byMonth, currentCategories, currentExtra) {
+  async function saveToGAS(apiUrl, byMonth, currentCategories, currentExtra, shared) {
     const targetUrl = apiUrl || getGasUrl();
     if (!targetUrl) throw new Error('No hay URL configurada para Google Apps Script.');
 
     const payload = {
       byMonth: byMonth,
       categories: currentCategories, // Retrocompatibilidad
-      extra: currentExtra            // Retrocompatibilidad
+      extra: currentExtra,           // Retrocompatibilidad
+      shared: shared || undefined
     };
+    const body = JSON.stringify(payload);
 
     // Google Apps Script Web App redirige con 302, mode: 'no-cors' permite enviar el payload
     await fetch(targetUrl, {
       method: 'POST',
       mode: 'no-cors',
       headers: { 'Content-Type': 'text/plain' },
-      body: JSON.stringify(payload)
+      body,
+      // keepalive deja terminar el envío si la pestaña se cierra (solo cuerpos pequeños)
+      keepalive: body.length < 60000
     });
 
     return true;
@@ -559,6 +648,11 @@
     createMonthFrom,
     isValidByMonth,
     mergeCloudByMonth,
+    normalizeMonthKey,
+    loadStoredShared,
+    storeShared,
+    deriveSharedFromMonths,
+    mergeCloudShared,
     loadInitialByMonthState,
     getGasUrl,
     setGasUrl,

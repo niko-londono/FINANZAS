@@ -47,7 +47,8 @@ Escritorio (≥ 960px): sidebar con las 6 vistas y estado de la nube abajo. Celu
 ## 5. Modelo de datos
 Todo vive en un objeto **`byMonth`**: `{ "YYYY-MM": { categories: [...], extra: {...} } }`.
 - `categories[]`: `{ id, name, budgeted, parentId (null = raíz), canDelete }`. Defaults: `sueldo`, `carro` (hijos `carro-seguro`, `carro-prest-mant`), `viajes`, `gastos-m`, `casa-inversion`.
-- `extra`: `{ summaryTables[], distribucion{ <tarjeta>: { pendingDone, rows[{catId, subId, amount}] } }, tarjetas{ <id>: { usdDone, dopDone } }, notes[], lastSaved (timestamp ms) }`.
+- `extra`: `{ summaryTables[], distribucion{ <tarjeta>: { pendingDone, rows[{catId, subId, amount}] } }, tarjetas{ <id>: { usdDone, dopDone } }, notes[], lastSaved (timestamp ms) }`. Los campos `tarjetas` y `notes` del mes ya no se usan (quedan como respaldo); ver datos compartidos.
+- **Datos compartidos** (no dependen del mes, `localStorage` `finanzas_shared` y hoja **Compartido**): `{ notes[], cardPayments{ <tarjeta>: { <mes del vencimiento>: { DOP, USD } } }, lastSaved }`. Si aún no existen se derivan de los meses (`deriveSharedFromMonths`: notas del mes guardado más tarde y todas las marcas de pago) con `lastSaved 0` para que la nube tenga prioridad.
 - **Mes nuevo** (`createMonthFrom`): se clona el mes anterior más cercano, se reinician los estados Pendiente (`tarjetas.*.usdDone/dopDone`, `distribucion.*.pendingDone`) y se marca `lastSaved: 0`; si no hay anterior, se usan los defaults (también con `lastSaved: 0`).
 - **`lastSaved: 0`** significa "plantilla sin editar": cualquier versión de ese mes en la nube gana. Toda edición pone `Date.now()`; "Restablecer mes" también, para que la nube no deshaga el reset.
 - **localStorage:** `budget_by_month` (principal), `gas_api_url`, `collapsed_categories`. Migra desde las claves antiguas `budget_categories` y `app_extra_data` (guarda respaldo `*_backup_v1`).
@@ -65,13 +66,15 @@ Todo vive en un objeto **`byMonth`**: `{ "YYYY-MM": { categories: [...], extra: 
 
 ## 7. Sincronización con Google Sheets
 - Hoja **Presupuestos**, columnas: `Mes (YYYY-MM)`, `Categorias JSON`, `Extra JSON`, `Ultima Actualizacion`.
-- `GET` devuelve `{ byMonth }`; `POST` (texto plano, `mode: no-cors`) recibe `{ byMonth, categories, extra }` y hace upsert por mes.
-- Carga desde la nube (inicio, "Sincronizar ahora" y al cambiar la URL) con `mergeCloudByMonth`: por mes gana el de mayor `extra.lastSaved` (la nube si es ≥ local); respuestas sin meses válidos se ignoran. Guardado con espera de 500 ms. Estados: `offline | syncing | connected | error`.
+- La columna A se guarda como **texto**: Sheets convertía `2026-10` en fecha, el script la devolvía como `"Thu Oct 01 2026 …"` y la app descartaba todo lo leído (cada dispositivo escribía pero nunca leía). El script normaliza fechas a `yyyy-MM`, quita meses repetidos y reescribe la hoja; la app también normaliza esas claves (`normalizeMonthKey`).
+- Hoja **Compartido**: fila `shared` con el JSON de los datos compartidos.
+- `GET` devuelve `{ byMonth, shared }`; `POST` (texto plano, `mode: no-cors`) recibe `{ byMonth, categories, extra, shared }`. Por mes (y para `shared`) el script solo reemplaza si el `lastSaved` que llega es ≥ al guardado, así un dispositivo desactualizado no pisa a otro. Usa `LockService` para que dos guardados no se crucen.
+- Carga desde la nube (inicio, "Sincronizar ahora", al cambiar la URL y al volver a la app si pasaron 15 s desde la última lectura, para el celular que la deja en segundo plano) con `mergeCloudByMonth`: por mes gana el de mayor `extra.lastSaved` (la nube si es ≥ local); respuestas sin meses válidos se ignoran. Guardado con espera de 500 ms; si la app pasa a segundo plano con un guardado pendiente se envía de inmediato (`keepalive`). Estados: `offline | syncing | connected | error`.
 - Como el POST usa `no-cors`, un error del script no se detecta: "Sincronizado" solo garantiza que la petición salió.
 - En el repo, `gas_backend.gs` tiene `SHEET_ID = 'PON_TU_SHEET_ID_AQUI'` a propósito: el ID real solo se escribe en el editor de Apps Script (el repo se publica entero en Pages). Al pegar una versión nueva del script, volver a poner el ID real.
 - Para actualizar el script: pegar `gas_backend.gs` → poner el `SHEET_ID` → **Implementar → Administrar implementaciones → editar → Nueva versión** (ejecutar como yo, acceso: cualquier usuario). Editar la misma implementación mantiene la URL `/exec` que usa la app.
 - La URL del script (`DEFAULT_GAS_URL`) está **hardcodeada** en el código y se puede sobrescribir desde Ajustes (`gas_api_url`). Guardarla vacía desactiva la nube (antes volvía a la URL por defecto).
-- Respaldo manual: exportar/importar JSON (`finanzas_backup_YYYY-MM_<timestamp>.json`). Al importar se valida la forma (`isValidByMonth`).
+- Respaldo manual: exportar/importar JSON (`finanzas_backup_YYYY-MM_<timestamp>.json`). Al importar se valida la forma (`isValidByMonth`) y cada mes recibe `lastSaved` nuevo para que la nube lo acepte.
 
 ## 7b. Movimientos desde Gmail (`MAESTRO.bancos.js`)
 - **Login:** Google Identity Services, token de acceso con `gmail.readonly openid email`, Client ID en la constante `GOOGLE_CLIENT_ID` (público por diseño). El token vive solo en memoria (~1 h); no se guarda.
@@ -96,7 +99,7 @@ Todo vive en un objeto **`byMonth`**: `{ "YYYY-MM": { categories: [...], extra: 
 - Si el día de pago es menor o igual que el de corte, el pago vence el mes siguiente al corte.
 - **Qué estado se muestra:** en el mes actual, el del próximo pago desde hoy; en otro mes, el estado de cuenta que vence en ese mes.
 - **Pagado:** hay un pago en esa moneda después del corte y hasta el siguiente corte. **Sin consumos:** el historial cubre todo el periodo del corte y no hubo consumos en esa moneda. **Vencido:** pasó la fecha límite sin pago (solo tarjetas con aviso automático). **Por confirmar:** tarjetas del Popular sin marca manual.
-- Las marcas manuales se guardan en `extra.tarjetas[<tarjeta>].manual[<mes del vencimiento>] = { DOP, USD }` del mes seleccionado (se sincronizan con el presupuesto). Si el automático ya dice Pagado o Sin consumos, la casilla queda bloqueada. Los campos antiguos `usdDone/dopDone` ya no se usan.
+- Las marcas manuales se guardan en los datos compartidos: `cardPayments[<tarjeta>][<mes del vencimiento>] = { DOP, USD }` (antes en `extra.tarjetas` del mes, por eso se perdían al cambiar de mes). Si el automático ya dice Pagado o Sin consumos, la casilla queda bloqueada. Los campos antiguos `usdDone/dopDone` ya no se usan.
 - El Popular solo manda a veces "Se aproxima tu fecha límite de pago" (`popularcontigo@bpd.com.do`, sin etiqueta); no sirve para saber si se pagó.
 
 ## 8. Pendientes y notas
@@ -110,6 +113,7 @@ Todo vive en un objeto **`byMonth`**: `{ "YYYY-MM": { categories: [...], extra: 
 - Los datos de plantilla (notas de ejemplo, resumen "Year-End 2025") son datos personales de ejemplo dentro del código.
 
 ## 9. Registro de cambios
+- **2026-10-18 · Sincronización entre dispositivos.** Las marcas de pago del Popular y el borrado de notas no pasaban del PC al celular: Google Sheets guardaba la columna Mes como fecha y la app descartaba los datos leídos. `gas_backend.gs` guarda el mes como texto, limpia filas repetidas, no deja que una versión más vieja pise a una nueva y agrega la hoja **Compartido**. Notas y marcas de pago pasan a ser datos compartidos (no por mes). La app relee la nube al volver a primer plano. **Requiere pegar el nuevo `gas_backend.gs` y publicar una versión nueva.**
 - **2026-10-18 · Tarjetas visuales y estado de pago automático.** "Pagos de tarjetas" pasa a "Mis tarjetas": tarjetas en SVG con fecha límite, días al corte, corte/vencimiento y estado por moneda calculado desde Gmail (APAP automático; Popular manual porque no envía correo de pago). Lo consumido al corte y desde el último corte por tarjeta. Botón para desplegar u ocultar el detalle del historial. Nuevo `cardCycle` en `MAESTRO.bancos.js`.
 - **2026-10-18 · Movimientos en producción.** Google Cloud configurado (API de Gmail habilitada, alcance `gmail.readonly`, usuario de prueba). Apps Script actualizado con el nuevo `gas_backend.gs` (versión 3 de la misma implementación, misma URL). Verificado: `doGet` responde y `txLoad` sin token devuelve `ok: false` ("Falta la sesión de Google"). Login con Gmail y lectura de movimientos probados por el usuario en la app publicada.
 - **2026-10-18 · Movimientos de tarjetas desde Gmail.** Nuevo `MAESTRO.bancos.js` (login de Google, lectura de etiquetas `BANCOS/*`, lectores APAP/Popular/PayPal, categorías por comercio, almacén y sync protegido). Vista Tarjetas con historial por tarjeta, periodo mes/12 meses, gasto por categoría y categoría editable. `gas_backend.gs` reorganizado (`SHEET_ID` arriba) con acciones `txLoad`/`txSave` que verifican el token del dueño. `index.html` carga Google Identity Services y el módulo nuevo.
