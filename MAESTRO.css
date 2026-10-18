@@ -876,3 +876,106 @@ textarea.input { resize: vertical; min-height: 96px; line-height: 1.5; }
   .cat-fixed { justify-self: start; padding-left: 8px; }
   .cat-bars { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
 }
+
+/* ==============================================================================
+   Tarjetas · Mis tarjetas (arte SVG con corte, vencimiento y estado)
+   ============================================================================== */
+.cc-grid { display: grid; grid-template-columns: 1fr; gap: 20px; }
+.cc { display: flex; flex-direction: column; gap: 10px; min-width: 0; }
+
+.cc-face {
+  position: relative;
+  aspect-ratio: 340 / 214;
+  border-radius: 16px;
+  overflow: hidden;
+  container-type: inline-size;
+  box-shadow: 0 1px 2px rgba(22, 40, 30, 0.12), 0 10px 24px -8px rgba(22, 40, 30, 0.35);
+  isolation: isolate;
+}
+.cc-art { position: absolute; inset: 0; width: 100%; height: 100%; z-index: -1; font-family: var(--font); }
+
+.cc-content {
+  position: absolute; inset: 0;
+  display: grid;
+  grid-template-rows: 1fr auto auto;
+  padding: 25cqw 6cqw 5cqw;
+  gap: 2.2cqw;
+  font-variant-numeric: tabular-nums;
+}
+.cc-due { display: flex; flex-direction: column; align-self: end; line-height: 1.05; }
+.cc-label { font-size: 3.4cqw; font-weight: 500; opacity: 0.85; }
+.cc-date { font-size: 9cqw; font-weight: 700; letter-spacing: -0.03em; text-transform: capitalize; }
+.cc-rel { font-size: 3.6cqw; font-weight: 600; margin-top: 0.6cqw; }
+.cc-cycle { display: flex; flex-direction: column; gap: 0.4cqw; font-size: 3.1cqw; font-weight: 500; opacity: 0.9; }
+.cc-bottom { display: flex; align-items: center; gap: 2.5cqw; padding-right: 21cqw; min-width: 0; }
+.cc-number { font-size: 3.8cqw; font-weight: 600; letter-spacing: 0.06em; white-space: nowrap; }
+.cc-chips { display: flex; gap: 1.4cqw; flex-wrap: wrap; min-width: 0; }
+
+.cc-chip {
+  display: inline-flex; align-items: center; gap: 0.8cqw;
+  padding: 0.8cqw 2cqw;
+  border-radius: 999px;
+  font-size: 2.9cqw; font-weight: 600; white-space: nowrap;
+  background: rgba(255, 255, 255, 0.9); color: #44504a;
+}
+.cc-chip b { font-weight: 800; letter-spacing: 0.02em; }
+.cc-chip svg { width: 3cqw; height: 3cqw; }
+.cc-chip.tone-ok { background: #e3f2e9; color: #0d5c38; }
+.cc-chip.tone-warn { background: #fbf0db; color: #7a4a00; }
+.cc-chip.tone-bad { background: #fbe9e6; color: #9b1f17; }
+.cc-chip.tone-muted { background: rgba(255, 255, 255, 0.82); color: #5a645e; }
+.cc-chip.tone-open { background: rgba(255, 255, 255, 0.82); color: #44504a; box-shadow: inset 0 0 0 1px rgba(68, 80, 74, 0.35); }
+
+/* Colores de texto por tarjeta (legibles sobre su fondo) */
+.cc-apap .cc-content { color: #2e2104; }
+.cc-apap .cc-number { color: #fff; text-shadow: 0 1px 2px rgba(90, 60, 0, 0.45); }
+.cc-jetblue .cc-content { color: #fff; }
+.cc-jetblue .cc-rel { color: #9fd8ff; }
+.cc-contigo .cc-content { color: #1d2a5c; }
+.cc-contigo .cc-number { color: #e07d10; }
+.cc-contigo .cc-due, .cc-contigo .cc-cycle { max-width: 58cqw; }
+
+.cc-facts { display: flex; flex-direction: column; gap: 6px; margin: 0; padding: 0 2px; }
+.cc-facts > div { display: flex; justify-content: space-between; align-items: baseline; gap: 12px; font-size: 13px; }
+.cc-facts dt { color: var(--ink-3); }
+.cc-facts dd { margin: 0; text-align: right; display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+.cc-payment { font-size: 13px; }
+
+.cc-manual { display: flex; flex-direction: column; gap: 6px; padding: 10px 12px; background: var(--surface-2); border-radius: var(--radius); }
+.cc-manual-row { display: flex; gap: 16px; flex-wrap: wrap; }
+.cc-check { display: inline-flex; align-items: center; gap: 8px; font-size: 14px; font-weight: 500; cursor: pointer; min-height: 32px; }
+.cc-check input { width: 18px; height: 18px; accent-color: var(--accent); }
+.cc-check.is-locked { color: var(--ink-3); cursor: default; }
+.cc-link { align-self: flex-start; }
+
+/* Botón de desplegar/ocultar el detalle de movimientos */
+.detail-toggle {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  width: 100%; min-height: 44px; padding: 0 12px;
+  border: 1px solid var(--line-strong); border-radius: var(--radius);
+  background: var(--surface); color: var(--ink);
+  font-size: 14px; font-weight: 600;
+  transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.detail-toggle:hover { background: var(--surface-2); }
+.detail-toggle svg { transform: rotate(90deg); transition: transform 0.2s var(--ease-out); color: var(--ink-3); }
+.detail-toggle.is-open svg { transform: rotate(-90deg); }
+.mov-detail { display: flex; flex-direction: column; gap: 14px; animation: fade-in 0.2s ease; }
+
+@media (min-width: 640px) {
+  .cc-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (min-width: 1200px) {
+  .cc-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+/* Ajuste de alturas: todo el contenido cabe dentro de la tarjeta (alto = 63cqw) */
+.cc-content { padding: 20cqw 5.5cqw 4.2cqw; gap: 1.8cqw; }
+.cc-date { font-size: 8cqw; }
+.cc-label { font-size: 3.2cqw; }
+.cc-rel { font-size: 3.3cqw; margin-top: 0.4cqw; }
+.cc-cycle { font-size: 2.9cqw; }
+.cc-bottom { gap: 2cqw; padding-right: 19cqw; }
+.cc-number { font-size: 3.4cqw; }
+.cc-chips { flex-wrap: nowrap; gap: 1.2cqw; }
+.cc-chip { font-size: 2.6cqw; padding: 0.7cqw 1.7cqw; }

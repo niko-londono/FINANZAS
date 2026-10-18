@@ -1064,17 +1064,62 @@
   // ============================================================================
   // VISTA 4: TARJETAS
   // ============================================================================
+  // Tarjetas de crédito: día de corte, día límite de pago y cómo reconocerlas en el historial de Gmail.
+  // autoPay: el banco envía correo cuando recibe el pago (APAP sí; el Popular no).
   const CREDIT_CARDS = [
-    { key: 'tc-contigo', name: 'TC Contigo' },
-    { key: 'tc-jetblue', name: 'TC JetBlue' },
-    { key: 'tc-apap', name: 'TC APAP' }
+    { key: 'tc-apap', name: 'Visa Gold', bankLabel: 'APAP', theme: 'apap', network: 'visa', corte: 13, vence: 4, autoPay: true,
+      match: (c) => c.bank === 'apap' && c.kind === 'credito' },
+    { key: 'tc-jetblue', name: 'JetBlue', bankLabel: 'Popular', theme: 'jetblue', network: 'mastercard', corte: 10, vence: 4, autoPay: false,
+      match: (c) => /jetblue/i.test(c.name) },
+    { key: 'tc-contigo', name: 'Contigo', bankLabel: 'Popular', theme: 'contigo', network: 'mastercard', corte: 28, vence: 23, autoPay: false,
+      match: (c) => /contigo/i.test(c.name) }
   ];
 
+  const DETAIL_KEY = 'mov_detail_open';
+
   function TabTarjetas({ currentMonth, gasUrl, notify, tarjetasData, onUpdateTarjetas }) {
+    const [store, setStore] = useState(() => FB.loadStore());
+    const [cardFilter, setCardFilter] = useState('all');
+    const [detailOpen, setDetailOpenState] = useState(() => FM.safeStorage.get(DETAIL_KEY) === '1');
+    const movements = useMemo(() => FB.getMovements(store), [store]);
+
+    const setDetailOpen = useCallback((open) => {
+      setDetailOpenState(open);
+      FM.safeStorage.set(DETAIL_KEY, open ? '1' : '0');
+    }, []);
+
+    // Tocar una tarjeta muestra su historial abajo
+    const showCardMovements = (cardId) => {
+      setCardFilter(cardId);
+      setDetailOpen(true);
+      setTimeout(() => {
+        const el = document.getElementById('mov-title');
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      }, 60);
+    };
+
     return (
       <div className="view">
-        {window.FinanzasBancos && <CardMovements currentMonth={currentMonth} gasUrl={gasUrl} notify={notify} />}
-        <PaymentsChecklist tarjetasData={tarjetasData} onUpdateTarjetas={onUpdateTarjetas} />
+        <CreditCards
+          currentMonth={currentMonth}
+          store={store}
+          movements={movements}
+          tarjetasData={tarjetasData}
+          onUpdateTarjetas={onUpdateTarjetas}
+          onShowMovements={showCardMovements}
+        />
+        <CardMovements
+          currentMonth={currentMonth}
+          gasUrl={gasUrl}
+          notify={notify}
+          store={store}
+          setStore={setStore}
+          movements={movements}
+          cardFilter={cardFilter}
+          setCardFilter={setCardFilter}
+          detailOpen={detailOpen}
+          setDetailOpen={setDetailOpen}
+        />
       </div>
     );
   }
@@ -1102,18 +1147,15 @@
     return d.toISOString().slice(0, 10);
   }
 
-  function CardMovements({ currentMonth, gasUrl, notify }) {
-    const [store, setStore] = useState(() => (FB ? FB.loadStore() : null));
+  function CardMovements({ currentMonth, gasUrl, notify, store, setStore, movements, cardFilter, setCardFilter, detailOpen, setDetailOpen }) {
     const [progress, setProgress] = useState(null); // { done, total } mientras lee Gmail
-    const [connected, setConnected] = useState(() => !!(FB && FB.hasSession()));
+    const [connected, setConnected] = useState(() => FB.hasSession());
     const [range, setRange] = useState('month'); // 'month' | 'year'
-    const [cardFilter, setCardFilter] = useState('all');
     const [categoryFilter, setCategoryFilter] = useState(null);
     const [sinceMonths, setSinceMonths] = useState('6');
     const [visible, setVisible] = useState(LIST_PAGE);
     const cloudTimerRef = useRef(null);
 
-    const movements = useMemo(() => FB.getMovements(store), [store]);
     const cards = useMemo(() => FB.getCards(store), [store]);
     const hasData = movements.length > 0;
 
@@ -1305,6 +1347,19 @@
               </div>
             </div>
 
+            <button
+              type="button"
+              className={`detail-toggle ${detailOpen ? 'is-open' : ''}`}
+              aria-expanded={detailOpen}
+              aria-controls="mov-detail"
+              onClick={() => setDetailOpen(!detailOpen)}
+            >
+              <span>{detailOpen ? 'Ocultar detalle' : `Ver detalle · ${listed.length} movimiento${listed.length === 1 ? '' : 's'}`}</span>
+              <Icons.Chevron />
+            </button>
+
+            {detailOpen && (
+            <div id="mov-detail" className="mov-detail">
             {summary.categories.length > 0 && (
               <ul className="cat-bars" aria-label="Gasto por categoría">
                 {summary.categories.map(c => {
@@ -1383,6 +1438,9 @@
               </div>
             )}
 
+            </div>
+            )}
+
             <footer className="mov-foot">
               <span className="muted small">
                 {store.lastSync ? `Última lectura: ${new Date(store.lastSync).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' })}` : 'Sin lecturas de Gmail en este navegador'}
@@ -1399,46 +1457,255 @@
     );
   }
 
-  // --- Lista de pagos por tarjeta (Pendiente/Hecho) ---
-  function PaymentsChecklist({ tarjetasData, onUpdateTarjetas }) {
-    const toggleCurrency = (cardKey, field) => {
-      const card = tarjetasData[cardKey] || { usdDone: false, dopDone: false };
-      onUpdateTarjetas({ ...tarjetasData, [cardKey]: { ...card, [field]: !card[field] } });
+  // --- Tarjetas de crédito: arte SVG, corte, vencimiento y estado del pago ---
+  const PAY_STATUS = {
+    pagado: { label: 'Pagado', tone: 'ok' },
+    'sin-saldo': { label: 'Sin consumos', tone: 'muted' },
+    pendiente: { label: 'Pendiente', tone: 'warn' },
+    vencido: { label: 'Vencido', tone: 'bad' },
+    'sin-datos': { label: 'Por confirmar', tone: 'open' }
+  };
+
+  const shortDate = (d) => d.toLocaleDateString('es-DO', { day: 'numeric', month: 'short' }).replace('.', '');
+  const relDays = (n) => (n === 0 ? 'hoy' : n === 1 ? 'mañana' : n > 0 ? `en ${n} días` : n === -1 ? 'ayer' : `hace ${-n} días`);
+
+  // Mastercard: dos círculos con la intersección naranja
+  const McLogo = ({ x, y, r = 15, id }) => (
+    <g aria-hidden="true">
+      <defs><clipPath id={`mc-${id}`}><circle cx={x} cy={y} r={r} /></clipPath></defs>
+      <circle cx={x} cy={y} r={r} fill="#eb001b" />
+      <circle cx={x + r * 1.25} cy={y} r={r} fill="#f79e1b" />
+      <circle cx={x + r * 1.25} cy={y} r={r} fill="#ff5f00" clipPath={`url(#mc-${id})`} />
+    </g>
+  );
+
+  // Arte de cada tarjeta (aproximación en SVG, 340×214)
+  function CardArt({ theme }) {
+    if (theme === 'apap') {
+      return (
+        <svg className="cc-art" viewBox="0 0 340 214" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="apap-bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#f2d98e" />
+              <stop offset="0.5" stopColor="#d7b04c" />
+              <stop offset="1" stopColor="#b68a28" />
+            </linearGradient>
+            <pattern id="apap-hex" width="20.78" height="36" patternUnits="userSpaceOnUse" patternTransform="scale(1.15)">
+              <path d="M0 6 L10.39 0 L20.78 6 L20.78 18 L10.39 24 L0 18 Z M10.39 24 L10.39 36" fill="none" stroke="#fff6dc" strokeOpacity="0.35" strokeWidth="1" />
+            </pattern>
+            <radialGradient id="apap-shine" cx="0.25" cy="0.1" r="0.9">
+              <stop offset="0" stopColor="#fffbe8" stopOpacity="0.55" />
+              <stop offset="0.6" stopColor="#fffbe8" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <rect width="340" height="214" fill="url(#apap-bg)" />
+          <rect width="340" height="214" fill="url(#apap-hex)" />
+          <rect width="340" height="214" fill="url(#apap-shine)" />
+          <g transform="translate(18 16)">
+            <rect width="34" height="34" rx="3" fill="none" stroke="#fff" strokeWidth="2" />
+            <path d="M8 26c2-9 9-15 18-15M10 26c1-5 5-9 11-9M17 8a5 5 0 1 1 0 0.1" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" />
+            <text x="42" y="15" fill="#fff" fontSize="12.5" fontWeight="800" letterSpacing="0.2">ASOCIACIÓN POPULAR</text>
+            <text x="42" y="27" fill="#fff" fontSize="7.4" fontWeight="600" letterSpacing="0.3">DE AHORROS Y PRÉSTAMOS</text>
+          </g>
+          <text x="322" y="198" textAnchor="end" fill="#fff" fontSize="27" fontWeight="900" fontStyle="italic" letterSpacing="-1">VISA</text>
+        </svg>
+      );
+    }
+    if (theme === 'jetblue') {
+      return (
+        <svg className="cc-art" viewBox="0 0 340 214" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+          <defs>
+            <linearGradient id="jb-bg" x1="0" y1="0" x2="1" y2="1">
+              <stop offset="0" stopColor="#0d1a8f" />
+              <stop offset="0.55" stopColor="#1a2bc9" />
+              <stop offset="1" stopColor="#0a1166" />
+            </linearGradient>
+            <pattern id="jb-dots" width="6" height="6" patternUnits="userSpaceOnUse">
+              <circle cx="3" cy="3" r="1.1" fill="#8fb4ff" />
+            </pattern>
+            <linearGradient id="jb-fade" x1="1" y1="0" x2="0" y2="1">
+              <stop offset="0" stopColor="#fff" stopOpacity="0.9" />
+              <stop offset="0.55" stopColor="#fff" stopOpacity="0.15" />
+              <stop offset="1" stopColor="#fff" stopOpacity="0" />
+            </linearGradient>
+            <mask id="jb-mask"><rect width="340" height="214" fill="url(#jb-fade)" /></mask>
+            <radialGradient id="jb-glow" cx="0.82" cy="0.05" r="0.45">
+              <stop offset="0" stopColor="#7fd3ff" stopOpacity="0.55" />
+              <stop offset="1" stopColor="#7fd3ff" stopOpacity="0" />
+            </radialGradient>
+          </defs>
+          <rect width="340" height="214" fill="url(#jb-bg)" />
+          <polygon points="150,0 340,0 340,120" fill="#2c44ff" opacity="0.35" />
+          <polygon points="60,214 230,40 300,214" fill="#0a0f5c" opacity="0.35" />
+          <polygon points="230,40 340,120 300,214" fill="#3a5bff" opacity="0.2" />
+          <rect width="340" height="214" fill="url(#jb-dots)" mask="url(#jb-mask)" opacity="0.7" />
+          <rect width="340" height="214" fill="url(#jb-glow)" />
+          <text x="20" y="42" fill="#fff" fontSize="25" fontWeight="700" letterSpacing="-0.6">jetBlue</text>
+          <McLogo x={286} y={186} r={14} id="jb" />
+        </svg>
+      );
+    }
+    // Contigo (Popular)
+    return (
+      <svg className="cc-art" viewBox="0 0 340 214" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+        <defs>
+          <linearGradient id="ct-bg" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="#f3f1ea" />
+            <stop offset="1" stopColor="#e4e0d4" />
+          </linearGradient>
+        </defs>
+        <rect width="340" height="214" fill="url(#ct-bg)" />
+        <g fill="none" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M214 92 l14 14 l-14 14" stroke="#ef8a17" strokeWidth="7" opacity="0.9" />
+          <path d="M236 74 l30 32 l-30 32" stroke="#3fbfd6" strokeWidth="11" opacity="0.95" />
+          <path d="M256 74 l30 32 l-30 32" stroke="#3fbfd6" strokeWidth="11" opacity="0.55" />
+          <path d="M300 92 l14 14 l-14 14" stroke="#ef8a17" strokeWidth="7" opacity="0.9" />
+        </g>
+        <text x="22" y="46" fontSize="23" fontWeight="800" fontStyle="italic" letterSpacing="-0.6">
+          <tspan fill="#1d2a5c">Conti</tspan><tspan fill="#3fbfd6">GO</tspan><tspan fill="#ef8a17" dx="2">›</tspan>
+        </text>
+        <g transform="translate(290 16)">
+          <rect width="34" height="34" rx="3" fill="#1d2a5c" />
+          <circle cx="17" cy="21" r="10" fill="none" stroke="#fff" strokeWidth="5" strokeDasharray="1.4 1.3" />
+          <circle cx="17" cy="21" r="5" fill="#1d2a5c" />
+          <circle cx="17" cy="21" r="3" fill="#3fbfd6" />
+        </g>
+        <McLogo x={286} y={186} r={14} id="ct" />
+      </svg>
+    );
+  }
+
+  const StatusChip = ({ currency, status, manual }) => {
+    const meta = PAY_STATUS[status] || PAY_STATUS['sin-datos'];
+    return (
+      <span className={`cc-chip tone-${meta.tone}`} title={manual ? 'Marcado a mano' : undefined}>
+        {status === 'pagado' && <Icons.Check />}
+        <b>{currency}</b> {meta.label}{manual ? '*' : ''}
+      </span>
+    );
+  };
+
+  function CreditCards({ currentMonth, store, movements, tarjetasData, onUpdateTarjetas, onShowMovements }) {
+    const today = new Date();
+    const todayMonth = FM.getCurrentYYYYMM();
+    const storeCards = FB.getCards(store);
+
+    const items = CREDIT_CARDS.map(cfg => {
+      const matched = storeCards.filter(cfg.match);
+      const cardIds = matched.map(c => c.id);
+      const last4 = (matched.find(c => c.last4) || {}).last4 || '';
+      // Mes actual: el próximo pago desde hoy. Otro mes: el pago que vence en ese mes.
+      const dueMonth = currentMonth === todayMonth ? FB.nextDueMonth(cfg, today) : currentMonth;
+      const cycle = FB.cardCycle(cfg, { movements, cardIds, dueMonth, today, autoPay: cfg.autoPay });
+
+      const manual = ((tarjetasData[cfg.key] || {}).manual || {})[dueMonth] || {};
+      const status = {};
+      const manualFlag = {};
+      ['DOP', 'USD'].forEach(cur => {
+        const auto = cycle.status[cur];
+        if (auto === 'pagado' || auto === 'sin-saldo') status[cur] = auto;
+        else if (manual[cur]) { status[cur] = 'pagado'; manualFlag[cur] = true; }
+        else status[cur] = auto === 'sin-datos' && cycle.overdue ? 'sin-datos' : auto;
+      });
+      const upToDate = ['DOP', 'USD'].every(cur => status[cur] === 'pagado' || status[cur] === 'sin-saldo');
+      return { cfg, cardIds, last4, dueMonth, cycle, status, manualFlag, upToDate, manual };
+    });
+
+    const toggleManual = (item, currency) => {
+      const prev = tarjetasData[item.cfg.key] || {};
+      const manualAll = { ...(prev.manual || {}) };
+      const forMonth = { ...(manualAll[item.dueMonth] || {}) };
+      forMonth[currency] = !forMonth[currency];
+      manualAll[item.dueMonth] = forMonth;
+      onUpdateTarjetas({ ...tarjetasData, [item.cfg.key]: { ...prev, manual: manualAll } });
     };
 
-    const total = CREDIT_CARDS.length * 2;
-    const done = CREDIT_CARDS.reduce((n, c) => {
-      const s = tarjetasData[c.key] || {};
-      return n + (s.usdDone ? 1 : 0) + (s.dopDone ? 1 : 0);
-    }, 0);
+    const upToDateCount = items.filter(i => i.upToDate).length;
 
     return (
-      <section className="panel" aria-labelledby="cards-title">
-          <SectionHead title="Pagos de tarjetas" id="cards-title">
-            <span className="muted small">{done} de {total} pagos hechos</span>
-          </SectionHead>
-          <div className="progress" aria-hidden="true"><span style={{ width: `${(done / total) * 100}%` }} /></div>
+      <section className="panel cc-panel" aria-labelledby="cards-title">
+        <SectionHead title="Mis tarjetas" id="cards-title">
+          <span className="muted small">{upToDateCount} de {items.length} al día</span>
+        </SectionHead>
 
-          <ul className="card-list">
-            {CREDIT_CARDS.map(c => {
-              const state = tarjetasData[c.key] || { usdDone: false, dopDone: false };
-              return (
-                <li key={c.key} className="card-item" data-card-key={c.key}>
-                  <span className="card-name"><Icons.Card /> {c.name}</span>
-                  <div className="card-currencies">
-                    <div className="currency">
-                      <span className="currency-code">USD</span>
-                      <StatusToggle done={state.usdDone} label={`${c.name} en USD`} onToggle={() => toggleCurrency(c.key, 'usdDone')} />
+        <div className="cc-grid">
+          {items.map(item => {
+            const { cfg, cycle, status, manualFlag } = item;
+            const isCurrent = currentMonth === todayMonth;
+            const paidAll = item.upToDate;
+            const dueLabel = paidAll ? 'Pago del corte al día' : cycle.overdue ? 'Venció el pago' : 'Pagar antes del';
+            const hasSpent = cycle.spent.DOP || cycle.spent.USD;
+            const hasOpen = cycle.openCycle.DOP || cycle.openCycle.USD;
+            return (
+              <article key={cfg.key} className={`cc cc-${cfg.theme}`} data-card-key={cfg.key}>
+                <div className="cc-face" role="group" aria-label={`${cfg.name} ${cfg.bankLabel}`}>
+                  <CardArt theme={cfg.theme} />
+                  <div className="cc-content">
+                    <div className="cc-due">
+                      <span className="cc-label">{dueLabel}</span>
+                      <span className="cc-date">{shortDate(cycle.due)}</span>
+                      <span className="cc-rel">{relDays(cycle.daysToDue)}</span>
                     </div>
-                    <div className="currency">
-                      <span className="currency-code">DOP</span>
-                      <StatusToggle done={state.dopDone} label={`${c.name} en DOP`} onToggle={() => toggleCurrency(c.key, 'dopDone')} />
+                    <div className="cc-cycle">
+                      <span>Corte día {cfg.corte} · Vence día {cfg.vence}</span>
+                      {isCurrent && <span>Próximo corte {relDays(cycle.daysToCut)} ({shortDate(cycle.nextCut)})</span>}
+                    </div>
+                    <div className="cc-bottom">
+                      <span className="cc-number">•••• {item.last4 || '····'}</span>
+                      <span className="cc-chips">
+                        <StatusChip currency="DOP" status={status.DOP} manual={manualFlag.DOP} />
+                        <StatusChip currency="USD" status={status.USD} manual={manualFlag.USD} />
+                      </span>
                     </div>
                   </div>
-                </li>
-              );
-            })}
-          </ul>
+                </div>
+
+                <dl className="cc-facts">
+                  <div>
+                    <dt>Consumido al corte del {shortDate(cycle.cut)}</dt>
+                    <dd>{hasSpent ? <MultiCurrency amounts={cycle.spent} /> : <span className="muted">{item.cardIds.length ? 'Sin consumos registrados' : 'Sin historial de Gmail'}</span>}</dd>
+                  </div>
+                  {isCurrent && (
+                    <div>
+                      <dt>Desde el último corte</dt>
+                      <dd>{hasOpen ? <MultiCurrency amounts={cycle.openCycle} /> : <span className="muted">—</span>}</dd>
+                    </div>
+                  )}
+                  {cycle.payments.length > 0 && (
+                    <div>
+                      <dt>Pagos recibidos</dt>
+                      <dd>{cycle.payments.map(p => <span key={p.id} className="money pos cc-payment">{fmtCurrency(p.amount, p.currency)} · {shortDate(new Date(p.date + 'T12:00'))}</span>)}</dd>
+                    </div>
+                  )}
+                </dl>
+
+                {!cfg.autoPay && (
+                  <div className="cc-manual">
+                    <span className="muted small">El {cfg.bankLabel} no avisa los pagos por correo. Márcalos tú:</span>
+                    <div className="cc-manual-row">
+                      {['DOP', 'USD'].map(cur => {
+                        const auto = cycle.status[cur];
+                        const locked = auto === 'pagado' || auto === 'sin-saldo';
+                        return (
+                          <label key={cur} className={`cc-check ${locked ? 'is-locked' : ''}`}>
+                            <input type="checkbox" checked={locked || !!item.manual[cur]} disabled={locked} onChange={() => toggleManual(item, cur)} />
+                            <span>{cur} pagado</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {item.cardIds.length > 0 && (
+                  <button type="button" className="btn btn-ghost btn-sm cc-link" onClick={() => onShowMovements(item.cardIds[0])}>
+                    Ver movimientos <Icons.Arrow />
+                  </button>
+                )}
+              </article>
+            );
+          })}
+        </div>
       </section>
     );
   }

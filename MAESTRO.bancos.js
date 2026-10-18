@@ -608,6 +608,118 @@
     return true;
   }
 
+  // --- 10. CICLOS DE TARJETAS DE CRÉDITO (corte y vencimiento) ---
+  // cfg = { corte: día de corte, vence: día límite de pago }. Si el día de pago es menor o igual
+  // que el de corte, el pago vence el mes siguiente al corte (caso de las tres tarjetas).
+
+  function dateAt(y, m0, day) {
+    const last = new Date(y, m0 + 1, 0).getDate();
+    return new Date(y, m0, Math.min(day, last));
+  }
+
+  function isoOf(d) {
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  }
+
+  function startOfDay(d) {
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function daysUntil(target, today) {
+    return Math.round((startOfDay(target) - startOfDay(today)) / 86400000);
+  }
+
+  // Estado de cuenta cuyo pago vence en el mes yyyyMM
+  function statementForDueMonth(cfg, yyyyMM) {
+    const [y, m] = yyyyMM.split('-').map(Number);
+    const cutOffset = cfg.vence <= cfg.corte ? -1 : 0;
+    return {
+      due: dateAt(y, m - 1, cfg.vence),
+      cut: dateAt(y, m - 1 + cutOffset, cfg.corte),
+      prevCut: dateAt(y, m - 2 + cutOffset, cfg.corte),
+      nextCut: dateAt(y, m + cutOffset, cfg.corte)
+    };
+  }
+
+  // Próxima fecha (hoy incluido) que cae en el día indicado del mes
+  function nextDay(day, today) {
+    const t = startOfDay(today);
+    const thisMonth = dateAt(t.getFullYear(), t.getMonth(), day);
+    return thisMonth >= t ? thisMonth : dateAt(t.getFullYear(), t.getMonth() + 1, day);
+  }
+
+  // Mes (YYYY-MM) del próximo pago desde hoy
+  function nextDueMonth(cfg, today) {
+    const due = nextDay(cfg.vence, today);
+    return `${due.getFullYear()}-${String(due.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  /**
+   * Situación de una tarjeta para el estado de cuenta que vence en dueMonth.
+   * - spent: consumos del periodo del corte (prevCut, cut] por moneda.
+   * - paid: pagos recibidos después del corte y hasta el siguiente corte, por moneda.
+   * - status por moneda: 'pagado' | 'sin-saldo' (no hubo consumos) | 'vencido' | 'pendiente' | 'sin-datos'.
+   * cardIds: ids del almacén que corresponden a esta tarjeta; autoPay: el banco avisa los pagos por correo.
+   */
+  function cardCycle(cfg, { movements = [], cardIds = [], dueMonth, today = new Date(), autoPay = false } = {}) {
+    const st = statementForDueMonth(cfg, dueMonth);
+    const cutIso = isoOf(st.cut), prevIso = isoOf(st.prevCut), nextIso = isoOf(st.nextCut);
+    const own = movements.filter(tx => cardIds.includes(tx.cardId) && tx.status !== 'declinada' && tx.date);
+
+    const spent = { DOP: 0, USD: 0 };
+    const paid = { DOP: 0, USD: 0 };
+    const payments = [];
+    own.forEach(tx => {
+      if (tx.type === 'consumo' && tx.date > prevIso && tx.date <= cutIso) spent[tx.currency] = (spent[tx.currency] || 0) + tx.amount;
+      if (tx.type === 'pago' && tx.date > cutIso && tx.date <= nextIso) {
+        paid[tx.currency] = (paid[tx.currency] || 0) + tx.amount;
+        payments.push(tx);
+      }
+    });
+
+    // Solo se puede afirmar "sin consumos" si el historial cubre todo el periodo del corte
+    const earliest = own.reduce((min, tx) => (!min || tx.date < min ? tx.date : min), null);
+    const covered = !!earliest && earliest <= prevIso;
+    const overdue = startOfDay(today) > st.due;
+
+    const status = {};
+    ['DOP', 'USD'].forEach(cur => {
+      if (paid[cur] > 0) status[cur] = 'pagado';
+      else if (covered && !spent[cur]) status[cur] = 'sin-saldo';
+      else if (!autoPay) status[cur] = 'sin-datos';
+      else status[cur] = overdue ? 'vencido' : 'pendiente';
+    });
+
+    // Lo consumido desde el último corte (lo que entrará en el próximo estado de cuenta)
+    const lastCut = (() => {
+      const t = startOfDay(today);
+      const c = dateAt(t.getFullYear(), t.getMonth(), cfg.corte);
+      return c < t ? c : dateAt(t.getFullYear(), t.getMonth() - 1, cfg.corte);
+    })();
+    const lastCutIso = isoOf(lastCut);
+    const todayIso = isoOf(startOfDay(today));
+    const openCycle = { DOP: 0, USD: 0 };
+    own.forEach(tx => {
+      if (tx.type === 'consumo' && tx.date > lastCutIso && tx.date <= todayIso) openCycle[tx.currency] = (openCycle[tx.currency] || 0) + tx.amount;
+    });
+
+    const nextCut = nextDay(cfg.corte, today);
+    return {
+      due: st.due,
+      cut: st.cut,
+      spent,
+      paid,
+      payments,
+      status,
+      covered,
+      overdue,
+      daysToDue: daysUntil(st.due, today),
+      nextCut,
+      daysToCut: daysUntil(nextCut, today),
+      openCycle
+    };
+  }
+
   // --- EXPOSICIÓN GLOBAL ---
   window.FinanzasBancos = {
     CATEGORIES,
@@ -630,7 +742,10 @@
     signOut,
     syncFromGmail,
     cloudLoad,
-    cloudSave
+    cloudSave,
+    statementForDueMonth,
+    nextDueMonth,
+    cardCycle
   };
 
 })(window);
