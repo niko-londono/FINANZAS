@@ -6,7 +6,7 @@ Webapp estática para llevar el presupuesto mensual personal: ingresos, gastos p
 
 ## Estructura rápida
 - `index.html`: carga React 18 + Babel (unpkg) y los archivos `MAESTRO.*`.
-- `MAESTRO.js` (motor de datos y cálculos), `MAESTRO.jsx` (interfaz React), `MAESTRO.css` (estilos).
+- `MAESTRO.js` (motor de datos y cálculos), `MAESTRO.bancos.js` (movimientos de tarjetas desde Gmail), `MAESTRO.jsx` (interfaz React), `MAESTRO.css` (estilos).
 - `index.legacy.html`, `src/js/app.js`, `src/css/style.css`: versión vanilla anterior, solo como referencia.
 - `gas_backend.gs`: backend de Google Apps Script (hoja "Presupuestos").
 - `.github/workflows/deploy.yml`: deploy a GitHub Pages.
@@ -22,6 +22,12 @@ npx serve .
 1. Crear una hoja de Google y copiar su ID.
 2. Pegar `gas_backend.gs` en un proyecto de Apps Script y reemplazar `PON_TU_SHEET_ID_AQUI` por el ID.
 3. Desplegar como aplicación web y pegar la URL en la configuración Cloud de la app (`gas_api_url`).
+
+## Movimientos de tarjetas (Gmail)
+1. En Google Cloud (proyecto del Client ID): habilitar la **API de Gmail**, agregar el alcance `gmail.readonly` en *Data Access* y tu cuenta como usuario de prueba en *Audience*.
+2. En el cliente OAuth, agregar los orígenes de JavaScript donde se abre la app (`https://niko-londono.github.io` y, para local, `http://localhost:<puerto>`).
+3. Pegar el nuevo `gas_backend.gs` en el Apps Script (conservando tu `SHEET_ID`) y volver a implementar como aplicación web.
+4. En la app: Tarjetas → **Conectar Gmail**.
 
 ## Deploy
 Cada push a `main` publica el repositorio en GitHub Pages con el workflow `Deploy to GitHub Pages`.

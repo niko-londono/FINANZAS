@@ -16,12 +16,13 @@ Desde el 2026-10-18 `index.html` carga React 18 + Babel standalone desde unpkg (
 ## 3. Archivos
 | Archivo | Rol | Cuándo tocarlo |
 |---|---|---|
-| `index.html` | Shell: `#root`, React/ReactDOM/Babel (unpkg, versiones fijas), `MAESTRO.css`, `MAESTRO.js`, `MAESTRO.jsx`; aviso si se abre con `file://`. | Casi nunca. |
+| `index.html` | Shell: `#root`, React/ReactDOM/Babel (unpkg, versiones fijas), Google Identity Services, `MAESTRO.css`, `MAESTRO.js`, `MAESTRO.bancos.js`, `MAESTRO.jsx`; aviso si se abre con `file://`. | Casi nunca. |
 | `MAESTRO.js` | Motor `window.FinanzasMaestro`: datos por defecto, cálculos, formato, storage, mezcla con la nube, GAS, respaldos. Sin UI. | Datos, cálculos o sincronización. |
+| `MAESTRO.bancos.js` | Motor `window.FinanzasBancos`: login de Google (GIS, solo lectura de Gmail), lectura de correos `BANCOS/*`, lectores por banco, categorías por comercio, almacén `card_movements_v1`, guardado protegido en la hoja. Sin UI. | Formato de correos nuevo, categorías, sync de movimientos. |
 | `MAESTRO.jsx` | UI React: `FinancialBudgetDashboard` (estado, persistencia, sync, avisos), selector de mes, vistas y modales. | Interfaz y flujos. |
 | `MAESTRO.css` | Estilos (tokens en `:root`, móvil primero, 640px tablet, 960px escritorio con sidebar). | Aspecto. |
 | `DESIGN.md` | Decisiones visuales (paleta, tipografía, componentes). | Si cambia el sistema visual. |
-| `gas_backend.gs` | Backend Google Apps Script (`doGet`/`doPost`) sobre la hoja **Presupuestos**. Se despliega aparte en Google, no en Pages. | Cambios en el formato de sync. |
+| `gas_backend.gs` | Backend Google Apps Script: presupuesto (`doGet`/`doPost`, hoja **Presupuestos**) y movimientos (`doPost` con `action: txLoad/txSave`, hoja **Movimientos**, solo con token de Google del dueño). Se despliega aparte en Google, no en Pages. | Cambios en el formato de sync. |
 | `index.legacy.html`, `src/js/app.js`, `src/css/style.css` | Versión vanilla anterior (referencia). `src/assets/favicon.png` sí se usa. | Candidatos a borrar. |
 | `refactor.js`, `refactor.py`, `fix_order.js`, `diff.txt` | Scripts/artefactos de la migración a estado mensual de la versión vanilla. Ya aplicados. `diff.txt` está en UTF-16. | Candidatos a borrar; no ejecutar de nuevo. |
 | `.claude/launch.json` | Servidor local para previsualizar (`npx serve` en el puerto 4317). | Si cambia el puerto. |
@@ -35,7 +36,9 @@ Escritorio (≥ 960px): sidebar con las 6 vistas y estado de la nube abajo. Celu
 - **Presupuesto** (`overview`): franja de balance (Disponible/Excedido, Ingresos, Presupuestado) con barra de composición del gasto respecto al ingreso; libro de categorías en árbol (colapsables, columna "Por asignar" = la antigua *Difference*; en celular aparece bajo la categoría padre) y fila "Cuadre del sueldo"; modal "Nueva categoría".
 - **Resumen** (`summary`): tablas editables (concepto, monto, destino) con total; se pueden agregar/quitar filas y tablas.
 - **Distribución** (`distribucion`): gráfico anual (monto o % del ingreso, mes actual resaltado); tarjetas de transferencia (`qik`, `gastos-m-p2`, `apap`, `gastos-m-p1`) con filas categoría/subcategoría/monto, monto sugerido, estado Pendiente/Hecho; zona "Restablecer mes".
-- **Tarjetas** (`tarjetas`): pagos USD/DOP de TC Contigo, TC JetBlue y TC APAP con barra de progreso.
+- **Tarjetas** (`tarjetas`):
+  - **Movimientos** (Gmail): botón "Conectar Gmail" / "Actualizar desde Gmail"; periodo Mes (el del selector superior) o 12 meses; fichas por tarjeta/cuenta con su gasto; resumen Gastado vs. Pagos y entradas; barras por categoría (clic = filtrar); lista por día con categoría editable en los consumos (la corrección se recuerda por comercio); "Desconectar Gmail" y "Borrar historial local".
+  - **Pagos de tarjetas**: pagos USD/DOP de TC Contigo, TC JetBlue y TC APAP con barra de progreso.
 - **Notas** (`notes`): fijadas y demás (ordenadas por fecha), tipos Estrategia/Meta/Recordatorio/Idea (valores guardados en inglés: STRATEGY, GOAL, REMINDER, IDEA); panel con accesos a las transferencias del mes.
 - **Ajustes** (`settings`): URL de Apps Script, "Sincronizar ahora", descargar/restaurar respaldo JSON.
 - Los mensajes van en avisos (toasts) abajo; solo las acciones destructivas usan `window.confirm`.
@@ -68,15 +71,32 @@ Todo vive en un objeto **`byMonth`**: `{ "YYYY-MM": { categories: [...], extra: 
 - La URL del script (`DEFAULT_GAS_URL`) está **hardcodeada** en el código y se puede sobrescribir desde Ajustes (`gas_api_url`). Guardarla vacía desactiva la nube (antes volvía a la URL por defecto).
 - Respaldo manual: exportar/importar JSON (`finanzas_backup_YYYY-MM_<timestamp>.json`). Al importar se valida la forma (`isValidByMonth`).
 
+## 7b. Movimientos desde Gmail (`MAESTRO.bancos.js`)
+- **Login:** Google Identity Services, token de acceso con `gmail.readonly openid email`, Client ID en la constante `GOOGLE_CLIENT_ID` (público por diseño). El token vive solo en memoria (~1 h); no se guarda.
+- **Búsqueda en Gmail:** etiquetas `bancos-apap` (asuntos *notificaciones*, *transferencia*), `bancos-popular` (*consumo*, *retiro*, *pagos al instante*, *transf recibida*), `bancos-paypal` (*pago*, *recibo*). Primera lectura: 3/6/12 meses o todo; luego, desde una semana antes de la última lectura. Correos ya leídos se saltan (`seen`). `BANCOS/QIK` solo trae certificados, no movimientos.
+- **Lectores** (texto aplanado del HTML del correo):
+  - APAP: consumo con tarjeta de crédito ("presenta una transacción"), pago a la tarjeta ("ha recibido un pago"), Transferencia ACH (salida) y Pago al Instante BCRD entrante (cuenta de ahorros). "ACH no procesada" se ignora.
+  - Popular: "Notificación de Consumo" (crédito y débito, incluye declinadas), "Notificación de Retiro" (cajero), retiro con Código Cash, pagos al instante enviados y transferencias recibidas (estas tres van a "Cuenta Popular").
+  - PayPal: no se suma (el cargo llega también por el banco como `PAYPAL *…`); se usa para ponerle el comercio real a ese cargo si coinciden tarjeta, moneda, monto (±3 %) y fecha (±5 días).
+- **Tarjetas:** id `<banco>-<últimos 4>` (`<banco>-cuenta` para cuentas); el nombre sale del correo. Los últimos 4 dígitos no se escriben en el código.
+- **Tipos:** consumo, retiro, transferencia (salen) · pago, ingreso (entran). Las declinadas se muestran tachadas y no suman. No hay conversión de moneda: los totales se muestran por moneda.
+- **Categorías:** palabras clave por comercio (`CATEGORIES`); retiros, transferencias, pagos e ingresos tienen categoría fija. Las correcciones del usuario se guardan en `rules` por `merchantKey` (dos primeras palabras del comercio).
+- **Almacén** `card_movements_v1` en localStorage: `{ tx, paypal, seen, rules, cards, lastSync, updatedAt }`. En la hoja **Movimientos** va una fila por elemento (Tipo, Id, JSON) y los `seen` en bloques de 1.000. Al conectar: se baja la hoja, se une con lo local (`mergeStores`), se lee Gmail y se sube todo.
+- **Seguridad del Apps Script:** `txLoad`/`txSave` validan el token con `oauth2.googleapis.com/tokeninfo`: debe ser del Client ID de la app y del mismo correo que es dueño del script. Sin eso responde `ok: false`. El presupuesto (`doGet`) sigue siendo público.
+- **Configuración en Google Cloud** (proyecto FINANZAS): API de Gmail habilitada; en *Data Access* el alcance `gmail.readonly`; en *Audience* tu cuenta como usuario de prueba (mientras la app esté en modo Testing); en el cliente OAuth, origen `https://niko-londono.github.io` (y `http://localhost:<puerto>` para probar en local).
+
 ## 8. Pendientes y notas
 - Borrar la versión vanilla (`index.legacy.html`, `src/js/app.js`, `src/css/style.css`) y los scripts `refactor.*`, `fix_order.js`, `diff.txt` cuando se confirme que la versión React cubre todo.
 - Las notas se guardan por mes (se copian al mes siguiente); editar una nota no cambia las de otros meses.
+- Movimientos: el Apps Script desplegado debe actualizarse con el nuevo `gas_backend.gs` (conservar el `SHEET_ID` real) y volver a implementarse; si no, la app avisa y guarda solo en el navegador.
+- Los lectores dependen del formato de los correos: si un banco cambia la plantilla, esos correos dejan de aparecer (se cuentan como no leídos en `syncFromGmail`).
 - React/Babel cargan desde unpkg: sin internet la app no abre. Babel en el navegador tarda ~1 s en compilar; si molesta, precompilar `MAESTRO.jsx`.
 - Seguridad: la URL del Apps Script está pública en el repo; cualquiera con ella puede leer/escribir la hoja. El 2026-10-17 se eliminó `src/API.md` (contenía un Client ID de Google) por información sensible; sigue en el historial de git.
 - El deploy publica TODO el repo en Pages (incluidos scripts y `docs/`).
 - Los datos de plantilla (notas de ejemplo, resumen "Year-End 2025") son datos personales de ejemplo dentro del código.
 
 ## 9. Registro de cambios
+- **2026-10-18 · Movimientos de tarjetas desde Gmail.** Nuevo `MAESTRO.bancos.js` (login de Google, lectura de etiquetas `BANCOS/*`, lectores APAP/Popular/PayPal, categorías por comercio, almacén y sync protegido). Vista Tarjetas con historial por tarjeta, periodo mes/12 meses, gasto por categoría y categoría editable. `gas_backend.gs` reorganizado (`SHEET_ID` arriba) con acciones `txLoad`/`txSave` que verifican el token del dueño. `index.html` carga Google Identity Services y el módulo nuevo.
 - **2026-10-18 · Versión React activada, bugs y rediseño.** `index.html` ahora carga React + `MAESTRO.*`; la versión vanilla pasó a `index.legacy.html`. Bugs corregidos en `MAESTRO.js/.jsx`: (1) meses nuevos o de plantilla tenían `lastSaved = Date.now()` y pisaban los datos de la nube en otro dispositivo → ahora `0`; (2) "Sincronizar ahora" descargaba y descartaba los datos → ahora los mezcla; (3) dejar la URL vacía no desactivaba la nube; (4) cambiar la URL no recargaba datos; (5) importar respaldos no validaba el archivo; (6) montos negativos salían como `$-1,234.00`; (7) el gráfico anual se desbordaba si los gastos superaban al ingreso; (8) "Restablecer mes" podía deshacerse al sincronizar; (9) no se podía volver a importar el mismo archivo. Rediseño completo (`MAESTRO.css` reescrito, `MAESTRO.jsx` con nuevo marcado): claro y sobrio, un acento verde, tipografía Onest con cifras tabulares, celular primero con barra inferior, sidebar en escritorio, franja de balance con composición del gasto, interfaz en español, avisos en lugar de `alert()`, modales como hoja inferior en celular, quitar filas en Resumen, accesibilidad (foco visible, `aria-*`, enlace para saltar al contenido). Nuevo `DESIGN.md`.
 - **2026-10-17 · Documentación.** HISTORIAL.md reescrito para este proyecto (antes describía HAPI Portafolio); README ampliado; documentadas las dos implementaciones (vanilla en producción vs. React `MAESTRO.*` sin conectar). Sin cambios de código.
 - **2026-10-17 · quitar información sensible.** Se eliminó `src/API.md`.

@@ -378,6 +378,9 @@
 
             {activeTab === 'tarjetas' && (
               <TabTarjetas
+                currentMonth={currentMonth}
+                gasUrl={gasUrl}
+                notify={notify}
                 tarjetasData={appExtra.tarjetas || {}}
                 onUpdateTarjetas={(newTarjetas) => {
                   updateCurrentMonthData(undefined, { ...appExtra, tarjetas: newTarjetas });
@@ -1067,7 +1070,337 @@
     { key: 'tc-apap', name: 'TC APAP' }
   ];
 
-  function TabTarjetas({ tarjetasData, onUpdateTarjetas }) {
+  function TabTarjetas({ currentMonth, gasUrl, notify, tarjetasData, onUpdateTarjetas }) {
+    return (
+      <div className="view">
+        {window.FinanzasBancos && <CardMovements currentMonth={currentMonth} gasUrl={gasUrl} notify={notify} />}
+        <PaymentsChecklist tarjetasData={tarjetasData} onUpdateTarjetas={onUpdateTarjetas} />
+      </div>
+    );
+  }
+
+  // --- Movimientos leídos desde Gmail ---
+  const FB = window.FinanzasBancos;
+  const CURRENCY_PREFIX = { DOP: '$', USD: 'US$', EUR: '€' };
+  const CARD_KIND_LABEL = { credito: 'Crédito', debito: 'Débito', cuenta: 'Cuenta' };
+  const LIST_PAGE = 120;
+
+  const fmtCurrency = (amount, currency) => {
+    const prefix = CURRENCY_PREFIX[currency] || '$';
+    return `${amount < 0 ? '-' : ''}${prefix}${FM.formatCurrency(Math.abs(amount))}`;
+  };
+
+  // Montos por moneda en una sola línea: "$12,300.00 · US$45.00"
+  const MultiCurrency = ({ amounts, className }) => {
+    const parts = ['DOP', 'USD', 'EUR'].filter(c => amounts[c]).map(c => fmtCurrency(amounts[c], c));
+    return <span className={`money ${className || ''}`}>{parts.length ? parts.join(' · ') : fmtCurrency(0, 'DOP')}</span>;
+  };
+
+  function isoMonthsAgo(months) {
+    const d = new Date();
+    d.setMonth(d.getMonth() - months);
+    return d.toISOString().slice(0, 10);
+  }
+
+  function CardMovements({ currentMonth, gasUrl, notify }) {
+    const [store, setStore] = useState(() => (FB ? FB.loadStore() : null));
+    const [progress, setProgress] = useState(null); // { done, total } mientras lee Gmail
+    const [connected, setConnected] = useState(() => !!(FB && FB.hasSession()));
+    const [range, setRange] = useState('month'); // 'month' | 'year'
+    const [cardFilter, setCardFilter] = useState('all');
+    const [categoryFilter, setCategoryFilter] = useState(null);
+    const [sinceMonths, setSinceMonths] = useState('6');
+    const [visible, setVisible] = useState(LIST_PAGE);
+    const cloudTimerRef = useRef(null);
+
+    const movements = useMemo(() => FB.getMovements(store), [store]);
+    const cards = useMemo(() => FB.getCards(store), [store]);
+    const hasData = movements.length > 0;
+
+    // Rango: el mes del selector superior o los 12 meses que terminan en él
+    const inRange = useMemo(() => {
+      if (range === 'month') return movements.filter(tx => (tx.date || '').startsWith(currentMonth));
+      const [y, m] = currentMonth.split('-').map(Number);
+      const start = new Date(y, m - 12, 1);
+      const from = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, '0')}`;
+      return movements.filter(tx => tx.date && tx.date.slice(0, 7) >= from && tx.date.slice(0, 7) <= currentMonth);
+    }, [movements, range, currentMonth]);
+
+    const cardTotals = useMemo(() => {
+      const totals = {};
+      inRange.forEach(tx => {
+        if (tx.status === 'declinada' || !tx.isOutflow) return;
+        const t = totals[tx.cardId] || (totals[tx.cardId] = {});
+        t[tx.currency] = (t[tx.currency] || 0) + tx.amount;
+      });
+      return totals;
+    }, [inRange]);
+
+    const forCard = useMemo(() => (cardFilter === 'all' ? inRange : inRange.filter(tx => tx.cardId === cardFilter)), [inRange, cardFilter]);
+    const summary = useMemo(() => FB.summarize(forCard), [forCard]);
+    const listed = useMemo(() => (categoryFilter ? forCard.filter(tx => tx.category === categoryFilter) : forCard), [forCard, categoryFilter]);
+
+    useEffect(() => { setVisible(LIST_PAGE); }, [cardFilter, categoryFilter, range, currentMonth]);
+
+    const scheduleCloudSave = useCallback((nextStore) => {
+      if (!gasUrl || !FB.hasSession()) return;
+      clearTimeout(cloudTimerRef.current);
+      cloudTimerRef.current = setTimeout(() => {
+        FB.cloudSave(gasUrl, nextStore).catch(err => notify(`No se guardó en la hoja: ${err.message}`, 'warn'));
+      }, 1500);
+    }, [gasUrl, notify]);
+
+    const connectAndSync = async () => {
+      let cloudError = null;
+      try {
+        await FB.signIn();
+        setConnected(true);
+        let working = FB.loadStore();
+
+        if (gasUrl) {
+          try {
+            const cloud = await FB.cloudLoad(gasUrl);
+            if (cloud) working = FB.mergeStores(working, cloud);
+          } catch (err) {
+            cloudError = err.message;
+          }
+        }
+
+        // Primera vez: desde la fecha elegida. Después: desde una semana antes de la última lectura.
+        const sinceIso = working.lastSync
+          ? new Date(working.lastSync - 7 * 86400000).toISOString().slice(0, 10)
+          : (sinceMonths === 'all' ? '' : isoMonthsAgo(Number(sinceMonths)));
+
+        setProgress({ done: 0, total: 0 });
+        const res = await FB.syncFromGmail(working, { sinceIso, onProgress: setProgress });
+        FB.saveStore(working);
+        setStore({ ...working });
+
+        if (gasUrl && !cloudError) {
+          try { await FB.cloudSave(gasUrl, working); } catch (err) { cloudError = err.message; }
+        }
+
+        const base = res.read === 0
+          ? 'No hay correos nuevos de los bancos.'
+          : `${res.added} movimiento${res.added === 1 ? '' : 's'} nuevo${res.added === 1 ? '' : 's'} de ${res.read} correo${res.read === 1 ? '' : 's'} leído${res.read === 1 ? '' : 's'}.`;
+        if (cloudError) notify(`${base} No se guardó en la hoja: ${cloudError}`, 'warn');
+        else notify(base, 'ok');
+      } catch (err) {
+        setConnected(FB.hasSession());
+        notify(err.message, 'error');
+      } finally {
+        setProgress(null);
+      }
+    };
+
+    const changeCategory = (tx, categoryId) => {
+      const next = { ...store, rules: { ...store.rules, [FB.merchantKey(tx.merchantDetail || tx.merchant)]: categoryId } };
+      FB.saveStore(next);
+      setStore(next);
+      scheduleCloudSave(next);
+    };
+
+    const disconnect = () => {
+      FB.signOut();
+      setConnected(false);
+      notify('Gmail desconectado. El historial guardado se mantiene.');
+    };
+
+    const clearLocal = () => {
+      if (!window.confirm('¿Borrar el historial de movimientos de este navegador? Se puede volver a leer desde Gmail (y la copia en Google Sheets no se toca).')) return;
+      setStore(FB.clearStore());
+      setCardFilter('all');
+      setCategoryFilter(null);
+    };
+
+    const syncing = !!progress;
+    const periodLabel = range === 'month' ? FM.formatMonthLabel(currentMonth) : `12 meses hasta ${FM.formatMonthLabel(currentMonth).toLowerCase()}`;
+    const maxCategory = Math.max(1, ...summary.categories.map(c => c.DOP || 0));
+    const selectedCard = cards.find(c => c.id === cardFilter);
+
+    // Agrupar la lista por día
+    const days = [];
+    listed.slice(0, visible).forEach(tx => {
+      const last = days[days.length - 1];
+      if (last && last.date === tx.date) last.items.push(tx);
+      else days.push({ date: tx.date, items: [tx] });
+    });
+    const dayLabel = (iso) => {
+      if (!iso) return 'Sin fecha';
+      const [y, m, d] = iso.split('-').map(Number);
+      return new Date(y, m - 1, d).toLocaleDateString('es-DO', { weekday: 'short', day: 'numeric', month: 'short' });
+    };
+
+    return (
+      <section className="panel movements" aria-labelledby="mov-title">
+        <SectionHead title="Movimientos" id="mov-title">
+          {hasData && (
+            <button type="button" className="btn btn-primary btn-sm" onClick={connectAndSync} disabled={syncing}>
+              <Icons.Refresh /> {syncing ? 'Leyendo…' : 'Actualizar desde Gmail'}
+            </button>
+          )}
+        </SectionHead>
+
+        {syncing && (
+          <div className="sync-progress" role="status">
+            <span>{progress.total ? `Leyendo correos… ${progress.done} de ${progress.total}` : 'Buscando correos de los bancos…'}</span>
+            <div className="progress"><span style={{ width: progress.total ? `${(progress.done / progress.total) * 100}%` : '8%' }} /></div>
+          </div>
+        )}
+
+        {!hasData && !syncing && (
+          <div className="mov-empty">
+            <p>
+              Conecta tu Gmail para armar el historial de cada tarjeta. Se leen solo los correos de las etiquetas
+              <strong> BANCOS/APAP</strong>, <strong>POPULAR</strong> y <strong>PAYPAL</strong> (consumos, retiros, pagos y transferencias) y cada gasto se clasifica por tipo de comercio.
+            </p>
+            <div className="mov-empty-actions">
+              <label className="field inline-field">
+                <span className="field-label">Leer desde</span>
+                <select className="input" value={sinceMonths} onChange={(e) => setSinceMonths(e.target.value)}>
+                  <option value="3">Últimos 3 meses</option>
+                  <option value="6">Últimos 6 meses</option>
+                  <option value="12">Último año</option>
+                  <option value="all">Todo el correo</option>
+                </select>
+              </label>
+              <button type="button" className="btn btn-primary" onClick={connectAndSync}>Conectar Gmail</button>
+            </div>
+            <p className="muted small">Google pedirá permiso de solo lectura. El acceso dura una hora y no se guarda en el navegador.</p>
+          </div>
+        )}
+
+        {hasData && (
+          <>
+            <div className="mov-toolbar">
+              <div className="segmented" role="group" aria-label="Periodo">
+                <button type="button" aria-pressed={range === 'month'} onClick={() => setRange('month')}>Mes</button>
+                <button type="button" aria-pressed={range === 'year'} onClick={() => setRange('year')}>12 meses</button>
+              </div>
+              <span className="muted small">{periodLabel}</span>
+            </div>
+
+            <div className="card-chips" role="group" aria-label="Tarjeta o cuenta">
+              <button type="button" className={`card-chip ${cardFilter === 'all' ? 'is-active' : ''}`} aria-pressed={cardFilter === 'all'} onClick={() => setCardFilter('all')}>
+                <span className="card-chip-name">Todas</span>
+                <MultiCurrency amounts={Object.values(cardTotals).reduce((acc, t) => { Object.keys(t).forEach(c => { acc[c] = (acc[c] || 0) + t[c]; }); return acc; }, {})} />
+              </button>
+              {cards.map(card => (
+                <button key={card.id} type="button" className={`card-chip ${cardFilter === card.id ? 'is-active' : ''}`} aria-pressed={cardFilter === card.id} onClick={() => setCardFilter(card.id)}>
+                  <span className="card-chip-name">{card.name}{card.last4 ? <span className="muted"> ··{card.last4}</span> : null}</span>
+                  <span className="card-chip-kind">{CARD_KIND_LABEL[card.kind] || ''} · {card.bank === 'apap' ? 'APAP' : 'Popular'}</span>
+                  <MultiCurrency amounts={cardTotals[card.id] || {}} />
+                </button>
+              ))}
+            </div>
+
+            <div className="mov-summary">
+              <div>
+                <span className="mov-summary-label">Gastado{selectedCard ? ` con ${selectedCard.name}` : ''}</span>
+                <MultiCurrency amounts={summary.totals.out} className="mov-summary-value" />
+              </div>
+              <div>
+                <span className="mov-summary-label">Pagos y entradas</span>
+                <MultiCurrency amounts={summary.totals.in} className="pos" />
+              </div>
+            </div>
+
+            {summary.categories.length > 0 && (
+              <ul className="cat-bars" aria-label="Gasto por categoría">
+                {summary.categories.map(c => {
+                  const meta = FB.CATEGORY_BY_ID[c.id] || FB.CATEGORY_BY_ID.otros;
+                  const active = categoryFilter === c.id;
+                  return (
+                    <li key={c.id}>
+                      <button type="button" className={`cat-bar ${active ? 'is-active' : ''}`} aria-pressed={active}
+                        onClick={() => setCategoryFilter(active ? null : c.id)}>
+                        <span className="cat-bar-label">
+                          <span className="legend-dot" style={{ background: meta.color }} />
+                          {meta.label}
+                          <span className="muted small">{c.count}</span>
+                        </span>
+                        <MultiCurrency amounts={c} />
+                        <span className="cat-bar-track" aria-hidden="true">
+                          <span style={{ width: `${((c.DOP || 0) / maxCategory) * 100}%`, background: meta.color }} />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
+
+            {categoryFilter && (
+              <div className="filter-note">
+                <span>Mostrando solo {(FB.CATEGORY_BY_ID[categoryFilter] || {}).label}</span>
+                <button type="button" className="btn btn-ghost btn-sm" onClick={() => setCategoryFilter(null)}>Ver todas</button>
+              </div>
+            )}
+
+            {listed.length === 0 ? (
+              <p className="empty-inline">No hay movimientos en {periodLabel.toLowerCase()}{selectedCard ? ` para ${selectedCard.name}` : ''}.</p>
+            ) : (
+              <div className="tx-days">
+                {days.map(day => (
+                  <div key={day.date} className="tx-day">
+                    <h3 className="tx-day-label">{dayLabel(day.date)}</h3>
+                    <ul className="tx-list">
+                      {day.items.map(tx => {
+                        const card = store.cards[tx.cardId];
+                        const declined = tx.status === 'declinada';
+                        return (
+                          <li key={tx.id} className={`tx ${declined ? 'is-declined' : ''}`}>
+                            <div className="tx-main">
+                              <span className="tx-merchant">{tx.merchantDetail || tx.merchant || FB.TYPE_LABELS[tx.type]}</span>
+                              <span className="tx-meta">
+                                {cardFilter === 'all' && card ? `${card.name}${card.last4 ? ` ··${card.last4}` : ''}` : ''}
+                                {tx.type !== 'consumo' ? `${cardFilter === 'all' && card ? ' · ' : ''}${FB.TYPE_LABELS[tx.type]}` : ''}
+                                {declined ? <span className="tag tag-declined">Declinada</span> : null}
+                              </span>
+                            </div>
+                            <span className={`money tx-amount ${tx.isOutflow ? '' : 'pos'}`}>
+                              {tx.isOutflow ? '' : '+'}{fmtCurrency(tx.amount, tx.currency)}
+                            </span>
+                            {tx.type === 'consumo' ? (
+                              <select className="cat-select" value={tx.category} aria-label={`Categoría de ${tx.merchantDetail || tx.merchant}`}
+                                onChange={(e) => changeCategory(tx, e.target.value)}>
+                                {FB.CATEGORIES.filter(c => c.match || c.id === 'otros').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                              </select>
+                            ) : (
+                              <span className="cat-fixed">{(FB.CATEGORY_BY_ID[tx.category] || {}).label}</span>
+                            )}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  </div>
+                ))}
+                {listed.length > visible && (
+                  <button type="button" className="btn btn-secondary btn-sm" onClick={() => setVisible(v => v + LIST_PAGE)}>
+                    Mostrar más ({listed.length - visible} restantes)
+                  </button>
+                )}
+              </div>
+            )}
+
+            <footer className="mov-foot">
+              <span className="muted small">
+                {store.lastSync ? `Última lectura: ${new Date(store.lastSync).toLocaleString('es-DO', { dateStyle: 'medium', timeStyle: 'short' })}` : 'Sin lecturas de Gmail en este navegador'}
+                {' · '}{movements.length} movimientos guardados
+              </span>
+              <div className="button-row">
+                {connected && <button type="button" className="btn btn-ghost btn-sm" onClick={disconnect}>Desconectar Gmail</button>}
+                <button type="button" className="btn btn-ghost btn-sm danger" onClick={clearLocal}>Borrar historial local</button>
+              </div>
+            </footer>
+          </>
+        )}
+      </section>
+    );
+  }
+
+  // --- Lista de pagos por tarjeta (Pendiente/Hecho) ---
+  function PaymentsChecklist({ tarjetasData, onUpdateTarjetas }) {
     const toggleCurrency = (cardKey, field) => {
       const card = tarjetasData[cardKey] || { usdDone: false, dopDone: false };
       onUpdateTarjetas({ ...tarjetasData, [cardKey]: { ...card, [field]: !card[field] } });
@@ -1080,8 +1413,7 @@
     }, 0);
 
     return (
-      <div className="view">
-        <section className="panel" aria-labelledby="cards-title">
+      <section className="panel" aria-labelledby="cards-title">
           <SectionHead title="Pagos de tarjetas" id="cards-title">
             <span className="muted small">{done} de {total} pagos hechos</span>
           </SectionHead>
@@ -1107,8 +1439,7 @@
               );
             })}
           </ul>
-        </section>
-      </div>
+      </section>
     );
   }
 
