@@ -125,6 +125,16 @@
     const [modalState, setModalState] = useState({ type: null, data: null }); // 'addCategory' | 'dbConfig' | 'note'
     const [distGraphMode, setDistGraphMode] = useState('amount'); // 'amount' | 'percent'
     const [toast, setToast] = useState(null);
+    // Tasa del dólar: arranca con la última guardada y se vuelve a consultar en cada carga
+    const [usdRate, setUsdRate] = useState(() => FM.loadStoredUsdRate());
+
+    useEffect(() => {
+      let alive = true;
+      FM.fetchUsdRate(gasUrl)
+        .then(rate => { if (alive) setUsdRate(rate); })
+        .catch(err => console.warn('No se pudo actualizar la tasa del dólar:', err));
+      return () => { alive = false; };
+    }, [gasUrl]);
 
     const hasLoadedFromCloudRef = useRef(false);
     const saveTimeoutRef = useRef(null);
@@ -404,6 +414,7 @@
                 onUpdateCategories={(newCats) => updateCurrentMonthData(newCats, undefined)}
                 onOpenAddCategory={() => setModalState({ type: 'addCategory' })}
                 onOpenTarjetas={() => goToTab('tarjetas')}
+                usdRate={usdRate}
               />
             )}
 
@@ -637,7 +648,8 @@
     onToggleCollapse,
     onUpdateCategories,
     onOpenAddCategory,
-    onOpenTarjetas
+    onOpenTarjetas,
+    usdRate
   }) {
     const handleCategoryChange = (id, field, value) => {
       onUpdateCategories(categories.map(cat => cat.id === id
@@ -720,7 +732,7 @@
           </div>
         </section>
 
-        <GastosMeter currentMonth={currentMonth} categories={categories} onOpenTarjetas={onOpenTarjetas} />
+        <GastosMeter currentMonth={currentMonth} categories={categories} onOpenTarjetas={onOpenTarjetas} usdRate={usdRate} />
 
         <section className="panel" aria-labelledby="budget-title">
           <SectionHead title="Categorías" id="budget-title">
@@ -766,12 +778,14 @@
   // --- Gastos M vs. lo gastado con las tarjetas en el mes (historial de Gmail) ---
   const METER_COLORS = ['#2f6f9f', '#c9892b', '#7a5aa6', '#b5523b', '#3f8f6b', '#6b7a86', '#a0527a'];
 
-  function GastosMeter({ currentMonth, categories, onOpenTarjetas }) {
+  function GastosMeter({ currentMonth, categories, onOpenTarjetas, usdRate }) {
     const gastosM = categories.find(c => c.id === 'gastos-m')
       || categories.find(c => c.parentId === null && /gastos\s*m\b/i.test(c.name || ''));
     const limit = gastosM ? Number(gastosM.budgeted) || 0 : 0;
+    const rate = usdRate && usdRate.venta > 0 ? usdRate.venta : 0;
 
-    // Mismo criterio que "Gastado" en Tarjetas (Mes, Todas): salidas no declinadas del mes
+    // Mismo criterio que "Gastado" en Tarjetas (Mes, Todas): salidas no declinadas del mes.
+    // Los dólares se pasan a pesos con la tasa de venta (si aún no hay tasa, quedan aparte).
     const data = useMemo(() => {
       const store = FB.loadStore();
       const cards = FB.getCards(store);
@@ -780,22 +794,28 @@
       FB.getMovements(store).forEach(tx => {
         if (!(tx.date || '').startsWith(currentMonth) || tx.status === 'declinada' || !tx.isOutflow) return;
         totals[tx.currency] = (totals[tx.currency] || 0) + tx.amount;
-        if (tx.currency === 'DOP') byCard[tx.cardId] = (byCard[tx.cardId] || 0) + tx.amount;
+        const inDop = tx.currency === 'DOP' ? tx.amount : tx.currency === 'USD' && rate ? tx.amount * rate : 0;
+        if (inDop) {
+          const c = byCard[tx.cardId] || (byCard[tx.cardId] = { amount: 0, usd: 0 });
+          c.amount += inDop;
+          if (tx.currency === 'USD') c.usd += tx.amount;
+        }
       });
       const segments = Object.keys(byCard)
         .map(id => {
           const card = cards.find(c => c.id === id);
-          return { id, amount: byCard[id], name: card ? `${card.name}${card.last4 ? ` ··${card.last4}` : ''}` : id };
+          return { id, ...byCard[id], name: card ? `${card.name}${card.last4 ? ` ··${card.last4}` : ''}` : id };
         })
         .filter(s => s.amount > 0)
         .sort((a, b) => b.amount - a.amount)
         .map((s, i) => ({ ...s, color: METER_COLORS[i % METER_COLORS.length] }));
       return { totals, segments, hasHistory: cards.length > 0 };
-    }, [currentMonth]);
+    }, [currentMonth, rate]);
 
     if (!gastosM) return null;
 
-    const spent = data.totals.DOP;
+    const usdInDop = rate ? data.totals.USD * rate : 0;
+    const spent = data.totals.DOP + usdInDop;
     const left = limit - spent;
     const over = left < 0;
     const pct = limit > 0 ? (spent / limit) * 100 : 0;
@@ -808,7 +828,10 @@
     const [y, m] = currentMonth.split('-').map(Number);
     const daysInMonth = new Date(y, m, 0).getDate();
     const pace = currentMonth === todayKey && limit > 0 ? (limit * now.getDate()) / daysInMonth : null;
-    const foreign = ['USD', 'EUR'].filter(c => data.totals[c] > 0);
+    const foreign = (rate ? ['EUR'] : ['USD', 'EUR']).filter(c => data.totals[c] > 0);
+    const rateDate = usdRate && usdRate.fecha
+      ? new Date(`${usdRate.fecha}T12:00:00`).toLocaleDateString('es-DO', { day: 'numeric', month: 'short' })
+      : '';
 
     return (
       <section className={`panel meter ${tone}`} aria-labelledby="meter-title">
@@ -861,20 +884,27 @@
               <li key={s.id}>
                 <span className="legend-dot" style={{ background: s.color }} />
                 <span className="legend-name">{s.name}</span>
-                <span className="legend-pct">{FM.formatMoney(s.amount)}</span>
+                <span className="legend-pct" title={s.usd ? `Incluye ${fmtCurrency(s.usd, 'USD')}` : undefined}>{FM.formatMoney(s.amount)}</span>
               </li>
             ))}
           </ul>
         ) : (
           <p className="hint">
             {data.hasHistory
-              ? `No hay consumos en pesos registrados en ${FM.formatMonthLabel(currentMonth).toLowerCase()}.`
+              ? `No hay consumos registrados en ${FM.formatMonthLabel(currentMonth).toLowerCase()}.`
               : 'Conecta Gmail en Tarjetas para ver cuánto llevas gastado.'}
+          </p>
+        )}
+        {rate > 0 && (
+          <p className="hint meter-rate">
+            {data.totals.USD > 0 && <>Incluye {fmtCurrency(data.totals.USD, 'USD')} = {FM.formatMoney(usdInDop)}. </>}
+            Dólar a {FM.formatCurrency(rate)} ({usdRate.fuente === 'BCRD' ? 'venta, Banco Central' : usdRate.fuente}{rateDate ? `, ${rateDate}` : ''}
+            {usdRate.stale ? ', última guardada' : ''}).
           </p>
         )}
         {foreign.length > 0 && (
           <p className="hint">
-            Además: {foreign.map(c => fmtCurrency(data.totals[c], c)).join(' · ')} (no se suma al límite: no se convierte moneda).
+            Además: {foreign.map(c => fmtCurrency(data.totals[c], c)).join(' · ')} (no se suma al límite: no hay tasa para convertir).
           </p>
         )}
       </section>

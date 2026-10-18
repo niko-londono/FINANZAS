@@ -123,6 +123,10 @@ function savePresupuesto_(data) {
 }
 
 function doGet(e) {
+  if (e && e.parameter && e.parameter.action === 'tasa') {
+    try { return jsonOut_(tasaDolarBcrd_()); }
+    catch (error) { return jsonOut_({ ok: false, error: error.toString() }); }
+  }
   var ss = SpreadsheetApp.openById(SHEET_ID);
   var months = readBudgetRows_(ss.getSheetByName(BUDGET_SHEET), ss.getSpreadsheetTimeZone());
   var byMonth = {};
@@ -130,6 +134,59 @@ function doGet(e) {
     byMonth[key] = { categories: months[key].categories, extra: months[key].extra };
   });
   return jsonOut_({ byMonth: byMonth, shared: readShared_(ss) });
+}
+
+// --- TASA DEL DÓLAR (Banco Central) ---
+// El BCRD publica la tasa de referencia diaria en un Excel sin CORS, así que el navegador no
+// puede leerlo: lo baja este script (GET ?action=tasa). Se toma la última fila de la hoja
+// "Diaria" (Año, Mes, Día, Compra, Venta). Caché de 30 min: el BCRD la cambia una vez al día.
+var BCRD_TASA_URL = 'https://cdn.bancentral.gov.do/documents/estadisticas/mercado-cambiario/documents/TASA_DOLAR_REFERENCIA_MC.xlsx';
+var MESES_BCRD = { Ene: 1, Feb: 2, Mar: 3, Abr: 4, May: 5, Jun: 6, Jul: 7, Ago: 8, Sep: 9, Oct: 10, Nov: 11, Dic: 12 };
+
+function tasaDolarBcrd_() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('tasa_bcrd');
+  if (cached) return JSON.parse(cached);
+
+  var res = UrlFetchApp.fetch(BCRD_TASA_URL, { muteHttpExceptions: true });
+  if (res.getResponseCode() !== 200) throw new Error('El Banco Central respondió ' + res.getResponseCode());
+  var files = Utilities.unzip(res.getBlob().setContentType('application/zip'));
+  var sheetXml = '', stringsXml = '';
+  files.forEach(function (f) {
+    if (f.getName() === 'xl/worksheets/sheet1.xml') sheetXml = f.getDataAsString('UTF-8');
+    if (f.getName() === 'xl/sharedStrings.xml') stringsXml = f.getDataAsString('UTF-8');
+  });
+  if (!sheetXml) throw new Error('No se encontró la hoja Diaria en el archivo del Banco Central.');
+
+  var strings = [];
+  stringsXml.replace(/<si>([\s\S]*?)<\/si>/g, function (_, si) {
+    strings.push(si.replace(/<[^>]+>/g, ''));
+    return '';
+  });
+
+  var rows = sheetXml.slice(-60000).match(/<row [^>]*>[\s\S]*?<\/row>/g) || [];
+  for (var i = rows.length - 1; i >= 0; i--) {
+    var cells = {};
+    rows[i].replace(/<c r="([A-E])\d+"([^>]*)>(?:<f>[\s\S]*?<\/f>)?<v>([^<]*)<\/v><\/c>/g, function (_, col, attrs, v) {
+      cells[col] = /t="s"/.test(attrs) ? strings[Number(v)] : v;
+      return '';
+    });
+    var year = Number(cells.A), month = MESES_BCRD[cells.B], day = Number(cells.C);
+    var compra = Number(cells.D), venta = Number(cells.E);
+    if (year && month && day && compra > 0 && venta > 0) {
+      var out = {
+        ok: true,
+        fuente: 'BCRD',
+        fecha: year + '-' + ('0' + month).slice(-2) + '-' + ('0' + day).slice(-2),
+        compra: compra,
+        venta: venta,
+        leido: new Date().toISOString()
+      };
+      cache.put('tasa_bcrd', JSON.stringify(out), 1800);
+      return out;
+    }
+  }
+  throw new Error('No se pudo leer la tasa en el archivo del Banco Central.');
 }
 
 // --- MOVIMIENTOS DE TARJETAS (protegidos) ---

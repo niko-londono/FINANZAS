@@ -605,6 +605,56 @@
     return true;
   }
 
+  // --- TASA DEL DÓLAR ---
+  // Se consulta en cada carga de la página. Fuente principal: Banco Central (vía Apps Script,
+  // porque el Excel del BCRD no permite leerlo desde el navegador). Si el script falla o es una
+  // versión sin "?action=tasa", se usa open.er-api.com. La última tasa queda guardada por si no hay internet.
+  const STORAGE_KEY_USD_RATE = 'usd_rate';
+  const FALLBACK_RATE_URL = 'https://open.er-api.com/v6/latest/USD';
+
+  function loadStoredUsdRate() {
+    try {
+      const rate = JSON.parse(safeStorage.get(STORAGE_KEY_USD_RATE) || 'null');
+      return rate && rate.venta > 0 ? { ...rate, stale: true } : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  async function fetchUsdRate(apiUrl) {
+    const targetUrl = apiUrl === undefined ? getGasUrl() : apiUrl;
+    let rate = null;
+    let bcrdError = null;
+
+    if (targetUrl) {
+      try {
+        const sep = targetUrl.includes('?') ? '&' : '?';
+        const res = await fetch(`${targetUrl}${sep}action=tasa&t=${Date.now()}`, { cache: 'no-store' });
+        const data = await res.json();
+        if (data && data.ok && Number(data.venta) > 0) {
+          rate = { fuente: 'BCRD', fecha: data.fecha, compra: Number(data.compra), venta: Number(data.venta) };
+        } else {
+          bcrdError = (data && data.error) || 'El script aún no tiene la consulta de tasa.';
+        }
+      } catch (err) {
+        bcrdError = err.message;
+      }
+    }
+
+    if (!rate) {
+      const res = await fetch(FALLBACK_RATE_URL, { cache: 'no-store' });
+      const data = await res.json();
+      const dop = data && data.rates && Number(data.rates.DOP);
+      if (!(dop > 0)) throw new Error('No se pudo obtener la tasa del dólar.');
+      const fecha = data.time_last_update_unix ? new Date(data.time_last_update_unix * 1000).toISOString().slice(0, 10) : '';
+      rate = { fuente: 'open.er-api.com', fecha, compra: dop, venta: dop, bcrdError };
+    }
+
+    rate.leido = Date.now();
+    safeStorage.set(STORAGE_KEY_USD_RATE, JSON.stringify(rate));
+    return rate;
+  }
+
   // --- 7. EXPORTACIÓN E IMPORTACIÓN DE RESPALDOS JSON ---
   function exportBackupJSON(byMonth) {
     const dataStr = 'data:text/json;charset=utf-8,' + encodeURIComponent(JSON.stringify(byMonth, null, 2));
@@ -658,6 +708,8 @@
     setGasUrl,
     loadFromGAS,
     saveToGAS,
+    loadStoredUsdRate,
+    fetchUsdRate,
     exportBackupJSON
   };
 
