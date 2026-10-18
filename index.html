@@ -11,6 +11,14 @@
   <title>Finanzas · Presupuesto</title>
   <link rel="icon" type="image/png" href="src/assets/favicon.png">
   <link rel="stylesheet" href="MAESTRO.css">
+  <script>
+    (function () {
+      var t = null;
+      try { t = localStorage.getItem('fm-theme'); } catch (e) {}
+      if (t !== 'dark' && t !== 'light') t = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = t;
+    })();
+  </script>
 </head>
 <body>
   <div id="root"></div>

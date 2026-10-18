@@ -50,8 +50,35 @@
     Arrow: (p) => <Svg size={16} {...p}><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></Svg>,
     Download: (p) => <Svg size={16} {...p}><path d="M12 4v11" /><path d="M7 10l5 5 5-5" /><path d="M5 20h14" /></Svg>,
     Upload: (p) => <Svg size={16} {...p}><path d="M12 20V9" /><path d="M7 14l5-5 5 5" /><path d="M5 4h14" /></Svg>,
+    Sun: (p) => <Svg {...p}><circle cx="12" cy="12" r="4" /><path d="M12 2v2" /><path d="M12 20v2" /><path d="M4.93 4.93l1.41 1.41" /><path d="M17.66 17.66l1.41 1.41" /><path d="M2 12h2" /><path d="M20 12h2" /><path d="M4.93 19.07l1.41-1.41" /><path d="M17.66 6.34l1.41-1.41" /></Svg>,
+    Moon: (p) => <Svg {...p}><path d="M20 14.5A8 8 0 1 1 9.5 4a6.5 6.5 0 0 0 10.5 10.5z" /></Svg>,
     Refresh: (p) => <Svg size={16} {...p}><path d="M20 11a8 8 0 0 0-14.9-3.9L4 8.5" /><path d="M4 4v4.5h4.5" /><path d="M4 13a8 8 0 0 0 14.9 3.9L20 15.5" /><path d="M20 20v-4.5h-4.5" /></Svg>
   };
+
+  // --- TEMA CLARO / OSCURO ---
+  // El valor inicial lo pone el script de index.html (evita el parpadeo al cargar).
+  const THEME_KEY = 'fm-theme';
+  function ThemeToggle() {
+    const [theme, setTheme] = useState(() => document.documentElement.dataset.theme || 'light');
+    useEffect(() => {
+      document.documentElement.dataset.theme = theme;
+      const meta = document.querySelector('meta[name="theme-color"]');
+      if (meta) meta.content = theme === 'dark' ? '#0f1412' : '#f3f5f2';
+      try { localStorage.setItem(THEME_KEY, theme); } catch (e) {}
+    }, [theme]);
+    const isDark = theme === 'dark';
+    return (
+      <button
+        type="button"
+        className="icon-btn theme-toggle"
+        onClick={() => setTheme(isDark ? 'light' : 'dark')}
+        aria-label={isDark ? 'Cambiar a modo claro' : 'Cambiar a modo oscuro'}
+        title={isDark ? 'Modo claro' : 'Modo oscuro'}
+      >
+        {isDark ? <Icons.Sun /> : <Icons.Moon />}
+      </button>
+    );
+  }
 
   const NAV_ITEMS = [
     { tab: 'overview', label: 'Presupuesto', Icon: Icons.Budget },
@@ -390,11 +417,12 @@
               byMonth={byMonth}
               onSelectMonth={switchMonth}
             />
-            <div className="topbar-actions mobile-only">
-              <SyncButton compact />
+            <div className="topbar-actions">
+              <ThemeToggle />
+              <span className="mobile-only"><SyncButton compact /></span>
               <button
                 type="button"
-                className={`icon-btn ${activeTab === 'settings' ? 'is-active' : ''}`}
+                className={`icon-btn mobile-only ${activeTab === 'settings' ? 'is-active' : ''}`}
                 onClick={() => goToTab('settings')}
                 aria-label="Ajustes"
               >
