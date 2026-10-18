@@ -1,13 +1,15 @@
 /**
  * ==============================================================================
  * MAESTRO.jsx - Aplicación Principal en React 18
- * Proyecto: Financial Budget Dashboard (Finanzas)
+ * Proyecto: Finanzas (presupuesto mensual)
  * ==============================================================================
- * Centraliza toda la interfaz interactiva en componentes React limpios:
- * - Selector global de mes (YYYY-MM) con historial e indicador visual de meses con datos
- * - Vistas: Overview, Summary, Distribución, Tarjetas, Notes, Settings
- * - Modales: Agregar Categoría, Configuración Cloud (GAS), Agregar/Editar Nota
- * - Persistencia por mes y sincronización bidireccional con Google Sheets (GAS)
+ * Interfaz completa en componentes React:
+ * - Selector global de mes (YYYY-MM) con indicador de meses con datos
+ * - Vistas: Presupuesto, Resumen, Distribución, Tarjetas, Notas, Ajustes
+ * - Modales: Agregar categoría, Conexión con la nube (GAS), Agregar/Editar nota
+ * - Avisos (toasts) en lugar de alert()
+ * - Persistencia por mes y sincronización con Google Sheets (GAS)
+ * Depende de window.FinanzasMaestro (MAESTRO.js) para datos y cálculos.
  */
 
 (function () {
@@ -21,96 +23,79 @@
     return;
   }
 
-  // --- ICONOS SVG REUTILIZABLES ---
+  // --- ICONOS SVG (trazo 1.75, 24x24) ---
+  const Svg = ({ size = 20, children, ...rest }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" {...rest}>
+      {children}
+    </svg>
+  );
+
   const Icons = {
-    Grid: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="3" y="3" width="7" height="7"></rect>
-        <rect x="14" y="3" width="7" height="7"></rect>
-        <rect x="14" y="14" width="7" height="7"></rect>
-        <rect x="3" y="14" width="7" height="7"></rect>
-      </svg>
-    ),
-    List: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="8" y1="6" x2="21" y2="6"></line>
-        <line x1="8" y1="12" x2="21" y2="12"></line>
-        <line x1="8" y1="18" x2="21" y2="18"></line>
-        <line x1="3" y1="6" x2="3.01" y2="6"></line>
-        <line x1="3" y1="12" x2="3.01" y2="12"></line>
-        <line x1="3" y1="18" x2="3.01" y2="18"></line>
-      </svg>
-    ),
-    Pie: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="18" cy="18" r="3"></circle>
-        <circle cx="6" cy="6" r="3"></circle>
-        <path d="M13 6h3a2 2 0 0 1 2 2v7"></path>
-        <line x1="6" y1="9" x2="6" y2="21"></line>
-      </svg>
-    ),
-    Card: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect>
-        <line x1="2" y1="10" x2="22" y2="10"></line>
-      </svg>
-    ),
-    Notes: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
-        <polyline points="14 2 14 8 20 8"></polyline>
-        <line x1="16" y1="13" x2="8" y2="13"></line>
-        <line x1="16" y1="17" x2="8" y2="17"></line>
-        <polyline points="10 9 9 9 8 9"></polyline>
-      </svg>
-    ),
-    Settings: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="12" r="3"></circle>
-        <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path>
-      </svg>
-    ),
-    Cloud: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"></path>
-      </svg>
-    ),
-    Plus: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="12" y1="5" x2="12" y2="19"></line>
-        <line x1="5" y1="12" x2="19" y2="12"></line>
-      </svg>
-    ),
-    Trash: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="3 6 5 6 21 6"></polyline>
-        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-      </svg>
-    ),
-    ChevronRight: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="9 18 15 12 9 6"></polyline>
-      </svg>
-    ),
-    Pin: ({ filled }) => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
-        <circle cx="12" cy="10" r="3"></circle>
-      </svg>
-    ),
-    Edit: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <path d="M12 20h9"></path>
-        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
-      </svg>
-    ),
-    Close: () => (
-      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-        <line x1="18" y1="6" x2="6" y2="18"></line>
-        <line x1="6" y1="6" x2="18" y2="18"></line>
-      </svg>
-    )
+    Budget: (p) => <Svg {...p}><path d="M4 19V9" /><path d="M10 19V5" /><path d="M16 19v-7" /><path d="M22 19H2" /></Svg>,
+    Summary: (p) => <Svg {...p}><rect x="4" y="3" width="16" height="18" rx="2" /><path d="M8 8h8" /><path d="M8 12h8" /><path d="M8 16h5" /></Svg>,
+    Split: (p) => <Svg {...p}><circle cx="6" cy="6" r="2.5" /><circle cx="18" cy="6" r="2.5" /><circle cx="12" cy="19" r="2.5" /><path d="M6 8.5v1.5a3 3 0 0 0 3 3h6a3 3 0 0 0 3-3V8.5" /><path d="M12 13v3.5" /></Svg>,
+    Card: (p) => <Svg {...p}><rect x="2.5" y="5" width="19" height="14" rx="2" /><path d="M2.5 10h19" /><path d="M6.5 15h3" /></Svg>,
+    Notes: (p) => <Svg {...p}><path d="M14 3H6a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V9z" /><path d="M14 3v6h6" /><path d="M8 13h8" /><path d="M8 17h5" /></Svg>,
+    Settings: (p) => <Svg {...p}><path d="M4 7h10" /><path d="M18 7h2" /><circle cx="16" cy="7" r="2" /><path d="M4 17h4" /><path d="M12 17h8" /><circle cx="10" cy="17" r="2" /></Svg>,
+    Cloud: (p) => <Svg {...p}><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.78A6 6 0 1 0 6.5 19z" /></Svg>,
+    Plus: (p) => <Svg size={16} {...p}><path d="M12 5v14" /><path d="M5 12h14" /></Svg>,
+    Trash: (p) => <Svg size={16} {...p}><path d="M4 7h16" /><path d="M10 11v6" /><path d="M14 11v6" /><path d="M6 7l1 12a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2l1-12" /><path d="M9 7V4h6v3" /></Svg>,
+    Chevron: (p) => <Svg size={16} {...p}><path d="M9 6l6 6-6 6" /></Svg>,
+    ChevronLeft: (p) => <Svg size={18} {...p}><path d="M15 6l-6 6 6 6" /></Svg>,
+    ChevronRight: (p) => <Svg size={18} {...p}><path d="M9 6l6 6-6 6" /></Svg>,
+    Pin: ({ filled, ...p }) => <Svg size={16} {...p}><path d="M12 17v4" /><path d="M8 4h8l-1 6 3 3v2H6v-2l3-3z" fill={filled ? 'currentColor' : 'none'} /></Svg>,
+    Edit: (p) => <Svg size={16} {...p}><path d="M4 20h4L19 9l-4-4L4 16z" /><path d="M13.5 6.5l4 4" /></Svg>,
+    Close: (p) => <Svg size={18} {...p}><path d="M6 6l12 12" /><path d="M18 6L6 18" /></Svg>,
+    Check: (p) => <Svg size={14} {...p}><path d="M5 12.5l4.5 4.5L19 7.5" /></Svg>,
+    Arrow: (p) => <Svg size={16} {...p}><path d="M5 12h14" /><path d="M13 6l6 6-6 6" /></Svg>,
+    Download: (p) => <Svg size={16} {...p}><path d="M12 4v11" /><path d="M7 10l5 5 5-5" /><path d="M5 20h14" /></Svg>,
+    Upload: (p) => <Svg size={16} {...p}><path d="M12 20V9" /><path d="M7 14l5-5 5 5" /><path d="M5 4h14" /></Svg>,
+    Refresh: (p) => <Svg size={16} {...p}><path d="M20 11a8 8 0 0 0-14.9-3.9L4 8.5" /><path d="M4 4v4.5h4.5" /><path d="M4 13a8 8 0 0 0 14.9 3.9L20 15.5" /><path d="M20 20v-4.5h-4.5" /></Svg>
   };
+
+  const NAV_ITEMS = [
+    { tab: 'overview', label: 'Presupuesto', Icon: Icons.Budget },
+    { tab: 'summary', label: 'Resumen', Icon: Icons.Summary },
+    { tab: 'distribucion', label: 'Distribución', Icon: Icons.Split },
+    { tab: 'tarjetas', label: 'Tarjetas', Icon: Icons.Card },
+    { tab: 'notes', label: 'Notas', Icon: Icons.Notes },
+    { tab: 'settings', label: 'Ajustes', Icon: Icons.Settings }
+  ];
+
+  const DB_STATUS_TEXT = {
+    offline: 'Solo en este navegador',
+    syncing: 'Guardando…',
+    connected: 'Sincronizado',
+    error: 'Sin conexión con la hoja'
+  };
+
+  const NOTE_TAGS = {
+    STRATEGY: 'Estrategia',
+    GOAL: 'Meta',
+    REMINDER: 'Recordatorio',
+    IDEA: 'Idea'
+  };
+
+  // Monto con signo y color semántico
+  const Money = ({ value, tone }) => {
+    const n = Number(value) || 0;
+    const cls = tone === 'auto' ? (n < 0 ? 'neg' : n > 0 ? 'pos' : '') : (tone || '');
+    return <span className={`money ${cls}`}>{FM.formatMoney(n)}</span>;
+  };
+
+  // Control de estado Pendiente / Hecho
+  const StatusToggle = ({ done, onToggle, label }) => (
+    <button
+      type="button"
+      className={`status ${done ? 'is-done' : ''}`}
+      aria-pressed={done}
+      aria-label={label ? `${label}: ${done ? 'hecho' : 'pendiente'}` : undefined}
+      onClick={onToggle}
+    >
+      <span className="status-mark">{done && <Icons.Check />}</span>
+      {done ? 'Hecho' : 'Pendiente'}
+    </button>
+  );
 
   // ============================================================================
   // COMPONENTE PRINCIPAL
@@ -119,7 +104,10 @@
     // 1. Estado Maestro
     const [byMonth, setByMonth] = useState(() => FM.loadInitialByMonthState());
     const [currentMonth, setCurrentMonth] = useState(() => FM.getCurrentYYYYMM());
-    const [activeTab, setActiveTab] = useState('overview');
+    const [activeTab, setActiveTab] = useState(() => {
+      const fromHash = (window.location.hash || '').slice(1);
+      return NAV_ITEMS.some(i => i.tab === fromHash) ? fromHash : 'overview';
+    });
     const [collapsedCategories, setCollapsedCategories] = useState(() => {
       try {
         const raw = FM.safeStorage.get(FM.STORAGE_KEY_COLLAPSED);
@@ -131,12 +119,25 @@
 
     const [dbStatus, setDbStatus] = useState('offline'); // offline | syncing | connected | error
     const [gasUrl, setGasUrlState] = useState(() => FM.getGasUrl());
-    const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
     const [modalState, setModalState] = useState({ type: null, data: null }); // 'addCategory' | 'dbConfig' | 'note'
     const [distGraphMode, setDistGraphMode] = useState('amount'); // 'amount' | 'percent'
+    const [toast, setToast] = useState(null);
 
     const hasLoadedFromCloudRef = useRef(false);
     const saveTimeoutRef = useRef(null);
+    const toastTimeoutRef = useRef(null);
+
+    const notify = useCallback((message, tone = 'info') => {
+      clearTimeout(toastTimeoutRef.current);
+      setToast({ message, tone, id: Date.now() });
+      toastTimeoutRef.current = setTimeout(() => setToast(null), 4000);
+    }, []);
+
+    const goToTab = useCallback((tab) => {
+      setActiveTab(tab);
+      if (window.history && window.history.replaceState) window.history.replaceState(null, '', `#${tab}`);
+      window.scrollTo({ top: 0 });
+    }, []);
 
     // Mes activo actual
     const currentMonthData = useMemo(() => {
@@ -155,17 +156,14 @@
     const categories = currentMonthData.categories;
     const appExtra = currentMonthData.extra;
 
-    // Métricas calculadas para Overview
-    const metrics = useMemo(() => {
-      return FM.computeMetrics(categories);
-    }, [categories]);
+    const metrics = useMemo(() => FM.computeMetrics(categories), [categories]);
 
     // 2. Persistencia en localStorage y Google Apps Script
     const persistState = useCallback((updatedByMonth) => {
       setByMonth(updatedByMonth);
       FM.safeStorage.set(FM.STORAGE_KEY_BY_MONTH, JSON.stringify(updatedByMonth));
 
-      // Sincronización en la nube debounced
+      // Sincronización en la nube con espera de 500 ms
       if (gasUrl) {
         setDbStatus('syncing');
         clearTimeout(saveTimeoutRef.current);
@@ -194,115 +192,70 @@
       persistState(nextByMonth);
     }, [byMonth, currentMonth, categories, appExtra, persistState]);
 
-    // 3. Carga inicial desde Google Apps Script
+    // 3. Carga desde Google Apps Script (inicial y "Sincronizar ahora")
+    const pullFromCloud = useCallback(async () => {
+      if (!gasUrl) {
+        setDbStatus('offline');
+        return false;
+      }
+      setDbStatus('syncing');
+      try {
+        const cloudData = await FM.loadFromGAS(gasUrl);
+        setByMonth(prev => {
+          const merged = FM.mergeCloudByMonth(prev, cloudData, currentMonth);
+          if (!merged) return prev;
+          FM.safeStorage.set(FM.STORAGE_KEY_BY_MONTH, JSON.stringify(merged));
+          return merged;
+        });
+        setDbStatus('connected');
+        return true;
+      } catch (err) {
+        console.warn('No se pudo conectar a Google Apps Script:', err);
+        setDbStatus('error');
+        return false;
+      }
+    }, [gasUrl, currentMonth]);
+
+    // Cambiar la URL del backend vuelve a cargar los datos desde esa hoja
+    const applyGasUrl = useCallback((url) => {
+      const clean = (url || '').trim();
+      hasLoadedFromCloudRef.current = false;
+      FM.setGasUrl(clean);
+      setGasUrlState(clean);
+      if (!clean) setDbStatus('offline');
+    }, []);
+
     useEffect(() => {
       if (hasLoadedFromCloudRef.current || !gasUrl) return;
       hasLoadedFromCloudRef.current = true;
-
-      async function syncCloud() {
-        setDbStatus('syncing');
-        try {
-          const cloudData = await FM.loadFromGAS(gasUrl);
-          let loadedByMonth = cloudData && cloudData.byMonth;
-
-          // Retrocompatibilidad con script antiguo de celda A1
-          if (!loadedByMonth && (Array.isArray(cloudData) || (cloudData && (cloudData.categories || cloudData.extra)))) {
-            const oldCats = Array.isArray(cloudData) ? cloudData : cloudData.categories;
-            const oldExtra = cloudData.extra;
-            if (oldCats && oldCats.length > 0) {
-              loadedByMonth = {
-                [currentMonth]: {
-                  categories: oldCats,
-                  extra: FM.ensureAppExtraDefaults(oldExtra || FM.DEFAULT_APP_EXTRA)
-                }
-              };
-            }
-          }
-
-          if (loadedByMonth && Object.keys(loadedByMonth).length > 0) {
-            setByMonth(prev => {
-              const merged = { ...prev };
-              Object.keys(loadedByMonth).forEach(m => {
-                const cloudMonth = loadedByMonth[m];
-                const localMonth = merged[m];
-                if (localMonth && localMonth.extra && cloudMonth.extra) {
-                  const localTs = localMonth.extra.lastSaved || 0;
-                  const cloudTs = cloudMonth.extra.lastSaved || 0;
-                  if (cloudTs >= localTs) {
-                    merged[m] = cloudMonth;
-                  }
-                } else {
-                  merged[m] = cloudMonth;
-                }
-              });
-              FM.safeStorage.set(FM.STORAGE_KEY_BY_MONTH, JSON.stringify(merged));
-              return merged;
-            });
-            setDbStatus('connected');
-          } else {
-            setDbStatus('connected');
-          }
-        } catch (err) {
-          console.warn('No se pudo conectar a Google Apps Script:', err);
-          setDbStatus('error');
-        }
-      }
-
-      syncCloud();
-    }, [gasUrl, currentMonth]);
+      pullFromCloud();
+    }, [gasUrl, pullFromCloud]);
 
     // 4. Cambiar mes
     const switchMonth = useCallback((targetMonth) => {
       setCurrentMonth(targetMonth);
       setByMonth(prev => {
-        if (!prev[targetMonth]) {
-          const sorted = Object.keys(prev).sort();
-          const prevMonths = sorted.filter(m => m < targetMonth);
-          const next = { ...prev };
-          if (prevMonths.length > 0) {
-            const nearest = prevMonths[prevMonths.length - 1];
-            const cloned = JSON.parse(JSON.stringify(prev[nearest]));
-            // Restablecer estados de verificación (PENDIENTE)
-            if (cloned.extra && cloned.extra.tarjetas) {
-              Object.keys(cloned.extra.tarjetas).forEach(k => {
-                cloned.extra.tarjetas[k].usdDone = false;
-                cloned.extra.tarjetas[k].dopDone = false;
-              });
-            }
-            if (cloned.extra && cloned.extra.distribucion) {
-              Object.keys(cloned.extra.distribucion).forEach(k => {
-                cloned.extra.distribucion[k].pendingDone = false;
-              });
-            }
-            next[targetMonth] = cloned;
-          } else {
-            next[targetMonth] = {
-              categories: JSON.parse(JSON.stringify(FM.DEFAULT_CATEGORIES)),
-              extra: JSON.parse(JSON.stringify(FM.DEFAULT_APP_EXTRA))
-            };
-          }
-          FM.safeStorage.set(FM.STORAGE_KEY_BY_MONTH, JSON.stringify(next));
-          return next;
-        }
-        return prev;
+        if (prev[targetMonth]) return prev;
+        const next = { ...prev, [targetMonth]: FM.createMonthFrom(prev, targetMonth) };
+        FM.safeStorage.set(FM.STORAGE_KEY_BY_MONTH, JSON.stringify(next));
+        return next;
       });
     }, []);
 
-    // Restablecer mes actual
+    // Restablecer mes actual (lleva fecha de guardado para que la nube no lo deshaga)
     const resetCurrentMonth = useCallback(() => {
-      if (window.confirm('¿Estás seguro de restablecer este mes a la plantilla base? Esto borrará los datos actuales solo de ESTE mes.')) {
-        const nextByMonth = {
-          ...byMonth,
-          [currentMonth]: {
-            categories: JSON.parse(JSON.stringify(FM.DEFAULT_CATEGORIES)),
-            extra: JSON.parse(JSON.stringify(FM.DEFAULT_APP_EXTRA))
-          }
-        };
-        persistState(nextByMonth);
-      }
-    }, [byMonth, currentMonth, persistState]);
+      if (!window.confirm(`¿Restablecer ${FM.formatMonthLabel(currentMonth)} a la plantilla base? Se borran los datos de este mes únicamente.`)) return;
+      const nextByMonth = {
+        ...byMonth,
+        [currentMonth]: {
+          categories: JSON.parse(JSON.stringify(FM.DEFAULT_CATEGORIES)),
+          extra: { ...JSON.parse(JSON.stringify(FM.DEFAULT_APP_EXTRA)), lastSaved: Date.now() }
+        }
+      };
+      persistState(nextByMonth);
+      notify('Mes restablecido a la plantilla base.');
+    }, [byMonth, currentMonth, persistState, notify]);
 
-    // Alternar colapso de categoría
     const toggleCollapse = useCallback((id) => {
       setCollapsedCategories(prev => {
         const next = new Set(prev);
@@ -313,230 +266,194 @@
       });
     }, []);
 
-    // Tooltip de estado en la nube
-    const dbStatusTitle = {
-      offline: 'Modo Local (Sin base de datos)',
-      syncing: 'Sincronizando con Google Sheets...',
-      connected: 'Conectado a Google Sheets',
-      error: 'Error de conexión con Apps Script'
-    }[dbStatus];
+    const closeModal = () => setModalState({ type: null, data: null });
+    const activeItem = NAV_ITEMS.find(i => i.tab === activeTab) || NAV_ITEMS[0];
+
+    const SyncButton = ({ compact }) => (
+      <button
+        type="button"
+        className={`sync sync-${dbStatus} ${compact ? 'sync-compact' : ''}`}
+        onClick={() => setModalState({ type: 'dbConfig' })}
+        title={DB_STATUS_TEXT[dbStatus]}
+        aria-label={`Conexión con la nube: ${DB_STATUS_TEXT[dbStatus]}`}
+      >
+        <span className="sync-dot" />
+        {!compact && <span>{DB_STATUS_TEXT[dbStatus]}</span>}
+      </button>
+    );
 
     return (
-      <div className="app-container">
-        {/* Overlay para móviles */}
-        <div
-          className={`sidebar-overlay ${isMobileMenuOpen ? 'active' : ''}`}
-          onClick={() => setIsMobileMenuOpen(false)}
-        />
+      <div className="app">
+        <a className="skip-link" href="#contenido">Saltar al contenido</a>
 
-        {/* Sidebar Principal */}
-        <aside className={`sidebar ${isMobileMenuOpen ? 'open' : ''}`}>
-          <div className="sidebar-logo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="9" rx="1"></rect>
-              <rect x="14" y="3" width="7" height="5" rx="1"></rect>
-              <rect x="14" y="12" width="7" height="9" rx="1"></rect>
-              <rect x="3" y="16" width="7" height="5" rx="1"></rect>
-            </svg>
-            <span>FINANZAS</span>
+        {/* Navegación lateral (escritorio) */}
+        <aside className="sidebar">
+          <div className="brand">
+            <span className="brand-mark" aria-hidden="true">F</span>
+            <span className="brand-name">Finanzas</span>
           </div>
-
-          <ul className="sidebar-menu">
-            {[
-              { tab: 'overview', label: 'Overview', icon: <Icons.Grid /> },
-              { tab: 'summary', label: 'Summary', icon: <Icons.List /> },
-              { tab: 'distribucion', label: 'Distribución', icon: <Icons.Pie /> },
-              { tab: 'tarjetas', label: 'Tarjetas', icon: <Icons.Card /> },
-              { tab: 'notes', label: 'Notes', icon: <Icons.Notes /> },
-              { tab: 'settings', label: 'Settings', icon: <Icons.Settings /> },
-            ].map(item => (
-              <li
-                key={item.tab}
-                className={`sidebar-item ${activeTab === item.tab ? 'active' : ''}`}
-                onClick={(e) => {
-                  e.preventDefault();
-                  setActiveTab(item.tab);
-                  setIsMobileMenuOpen(false);
-                }}
-              >
-                <a href={`#${item.tab}`}>
-                  {item.icon}
-                  {item.label}
-                </a>
-              </li>
-            ))}
-          </ul>
+          <nav aria-label="Secciones">
+            <ul className="side-nav">
+              {NAV_ITEMS.map(({ tab, label, Icon }) => (
+                <li key={tab}>
+                  <a
+                    href={`#${tab}`}
+                    className={`side-link ${activeTab === tab ? 'is-active' : ''}`}
+                    aria-current={activeTab === tab ? 'page' : undefined}
+                    onClick={(e) => { e.preventDefault(); goToTab(tab); }}
+                  >
+                    <Icon />
+                    <span>{label}</span>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </nav>
+          <div className="sidebar-foot">
+            <SyncButton />
+          </div>
         </aside>
 
-        {/* Header Móvil */}
-        <div className="mobile-header">
-          <MonthSelectorWidget
-            currentMonth={currentMonth}
-            byMonth={byMonth}
-            onSelectMonth={switchMonth}
-          />
-
-          <div className="mobile-logo">
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#10b981" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="9" rx="1"></rect>
-              <rect x="14" y="3" width="7" height="5" rx="1"></rect>
-              <rect x="14" y="12" width="7" height="9" rx="1"></rect>
-              <rect x="3" y="16" width="7" height="5" rx="1"></rect>
-            </svg>
-            <span>FINANZAS</span>
-          </div>
-
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <button
-              className={`btn btn-secondary btn-sm db-status-btn ${dbStatus}`}
-              style={{ padding: '0.35rem', borderRadius: '6px' }}
-              title={dbStatusTitle}
-              onClick={() => setModalState({ type: 'dbConfig' })}
-            >
-              <Icons.Cloud />
-            </button>
-            <button
-              className="btn btn-primary btn-sm"
-              style={{ padding: '0.35rem 0.6rem', borderRadius: '6px', fontWeight: 600, gap: '0.25rem' }}
-              onClick={() => setModalState({ type: 'addCategory' })}
-            >
-              <Icons.Plus />
-              <span>Categoría</span>
-            </button>
-          </div>
-        </div>
-
-        {/* Barra superior de mes en escritorio */}
-        <div className="global-top-bar" style={{ position: 'absolute', top: 10, right: 20, zIndex: 100 }}>
-          <MonthSelectorWidget
-            currentMonth={currentMonth}
-            byMonth={byMonth}
-            onSelectMonth={switchMonth}
-          />
-        </div>
-
-        {/* Contenido Principal según Tab activa */}
-        <main className="dashboard-layout" style={{ display: activeTab === 'overview' ? 'grid' : 'none' }}>
-          <TabOverview
-            currentMonth={currentMonth}
-            categories={categories}
-            metrics={metrics}
-            collapsedCategories={collapsedCategories}
-            onToggleCollapse={toggleCollapse}
-            onUpdateCategories={(newCats) => updateCurrentMonthData(newCats, undefined)}
-            onOpenAddCategory={() => setModalState({ type: 'addCategory' })}
-            onOpenCloudConfig={() => setModalState({ type: 'dbConfig' })}
-            dbStatus={dbStatus}
-            dbStatusTitle={dbStatusTitle}
-          />
-        </main>
-
-        <div className="tab-page" style={{ display: activeTab === 'summary' ? 'block' : 'none' }}>
-          <TabSummary
-            currentMonth={currentMonth}
-            summaryTables={appExtra.summaryTables || []}
-            onUpdateSummaryTables={(newTables) => {
-              updateCurrentMonthData(undefined, { ...appExtra, summaryTables: newTables });
-            }}
-          />
-        </div>
-
-        <div className="tab-page" style={{ display: activeTab === 'distribucion' ? 'block' : 'none' }}>
-          <TabDistribucion
-            currentMonth={currentMonth}
-            byMonth={byMonth}
-            categories={categories}
-            distribucionData={appExtra.distribucion || {}}
-            distGraphMode={distGraphMode}
-            onChangeGraphMode={setDistGraphMode}
-            onResetMonth={resetCurrentMonth}
-            onUpdateDistribucion={(newDist) => {
-              updateCurrentMonthData(undefined, { ...appExtra, distribucion: newDist });
-            }}
-          />
-        </div>
-
-        <div className="tab-page" style={{ display: activeTab === 'tarjetas' ? 'block' : 'none' }}>
-          <TabTarjetas
-            currentMonth={currentMonth}
-            tarjetasData={appExtra.tarjetas || {}}
-            onUpdateTarjetas={(newTarjetas) => {
-              updateCurrentMonthData(undefined, { ...appExtra, tarjetas: newTarjetas });
-            }}
-          />
-        </div>
-
-        <div className="tab-page" style={{ display: activeTab === 'notes' ? 'block' : 'none' }}>
-          <TabNotes
-            currentMonth={currentMonth}
-            notes={appExtra.notes || []}
-            distribucionData={appExtra.distribucion || {}}
-            onOpenAddNote={() => setModalState({ type: 'note', data: null })}
-            onOpenEditNote={(note) => setModalState({ type: 'note', data: note })}
-            onUpdateNotes={(newNotes) => {
-              updateCurrentMonthData(undefined, { ...appExtra, notes: newNotes });
-            }}
-            onNavigateToDist={(key) => {
-              setActiveTab('distribucion');
-              setTimeout(() => {
-                const el = document.querySelector(`.dist-card[data-dist-key="${key}"]`);
-                if (el) {
-                  el.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                  el.style.outline = '3px solid var(--color-info)';
-                  setTimeout(() => { el.style.outline = 'none'; }, 1500);
-                }
-              }, 150);
-            }}
-          />
-        </div>
-
-        <div className="tab-page" style={{ display: activeTab === 'settings' ? 'block' : 'none' }}>
-          <TabSettings
-            gasUrl={gasUrl}
-            dbStatus={dbStatus}
-            byMonth={byMonth}
-            onSaveGasUrl={(url) => {
-              setGasUrlState(url);
-              FM.setGasUrl(url);
-            }}
-            onManualSync={() => {
-              hasLoadedFromCloudRef.current = false;
-              setDbStatus('syncing');
-              FM.loadFromGAS(gasUrl).then(data => {
-                setDbStatus('connected');
-                alert('Sincronización exitosa con Google Apps Script');
-              }).catch(err => {
-                setDbStatus('error');
-                alert('Error al sincronizar: ' + err.message);
-              });
-            }}
-            onExportBackup={() => FM.exportBackupJSON(byMonth)}
-            onImportBackup={(importedByMonth) => {
-              if (window.confirm('¿Reemplazar todos los datos actuales con este archivo de respaldo?')) {
-                persistState(importedByMonth);
-              }
-            }}
-          />
-        </div>
-
-        {/* Navegación Inferior Móvil */}
-        <nav className="bottom-nav">
-          {[
-            { tab: 'overview', label: 'Overview', icon: <Icons.Grid /> },
-            { tab: 'summary', label: 'Summary', icon: <Icons.List /> },
-            { tab: 'distribucion', label: 'Distribución', icon: <Icons.Pie /> },
-            { tab: 'tarjetas', label: 'Tarjetas', icon: <Icons.Card /> },
-            { tab: 'notes', label: 'Notes', icon: <Icons.Notes /> },
-            { tab: 'settings', label: 'Settings', icon: <Icons.Settings /> },
-          ].map(item => (
-            <div
-              key={item.tab}
-              className={`bottom-nav-item ${activeTab === item.tab ? 'active' : ''}`}
-              onClick={() => setActiveTab(item.tab)}
-            >
-              {item.icon}
-              <span>{item.label}</span>
+        <div className="main">
+          {/* Barra superior */}
+          <header className="topbar">
+            <div className="topbar-title">
+              <span className="brand-mark mobile-only" aria-hidden="true">F</span>
+              <h1>{activeItem.label}</h1>
             </div>
+            <MonthSelectorWidget
+              currentMonth={currentMonth}
+              byMonth={byMonth}
+              onSelectMonth={switchMonth}
+            />
+            <div className="topbar-actions mobile-only">
+              <SyncButton compact />
+              <button
+                type="button"
+                className={`icon-btn ${activeTab === 'settings' ? 'is-active' : ''}`}
+                onClick={() => goToTab('settings')}
+                aria-label="Ajustes"
+              >
+                <Icons.Settings />
+              </button>
+            </div>
+          </header>
+
+          <main id="contenido" className="content" tabIndex={-1}>
+            {activeTab === 'overview' && (
+              <TabOverview
+                currentMonth={currentMonth}
+                categories={categories}
+                metrics={metrics}
+                collapsedCategories={collapsedCategories}
+                onToggleCollapse={toggleCollapse}
+                onUpdateCategories={(newCats) => updateCurrentMonthData(newCats, undefined)}
+                onOpenAddCategory={() => setModalState({ type: 'addCategory' })}
+              />
+            )}
+
+            {activeTab === 'summary' && (
+              <TabSummary
+                summaryTables={appExtra.summaryTables || []}
+                onUpdateSummaryTables={(newTables) => {
+                  updateCurrentMonthData(undefined, { ...appExtra, summaryTables: newTables });
+                }}
+              />
+            )}
+
+            {activeTab === 'distribucion' && (
+              <TabDistribucion
+                currentMonth={currentMonth}
+                byMonth={byMonth}
+                categories={categories}
+                distribucionData={appExtra.distribucion || {}}
+                distGraphMode={distGraphMode}
+                onChangeGraphMode={setDistGraphMode}
+                onResetMonth={resetCurrentMonth}
+                onUpdateDistribucion={(newDist) => {
+                  updateCurrentMonthData(undefined, { ...appExtra, distribucion: newDist });
+                }}
+              />
+            )}
+
+            {activeTab === 'tarjetas' && (
+              <TabTarjetas
+                tarjetasData={appExtra.tarjetas || {}}
+                onUpdateTarjetas={(newTarjetas) => {
+                  updateCurrentMonthData(undefined, { ...appExtra, tarjetas: newTarjetas });
+                }}
+              />
+            )}
+
+            {activeTab === 'notes' && (
+              <TabNotes
+                notes={appExtra.notes || []}
+                distribucionData={appExtra.distribucion || {}}
+                onOpenAddNote={() => setModalState({ type: 'note', data: null })}
+                onOpenEditNote={(note) => setModalState({ type: 'note', data: note })}
+                onUpdateNotes={(newNotes) => {
+                  updateCurrentMonthData(undefined, { ...appExtra, notes: newNotes });
+                }}
+                onNavigateToDist={(key) => {
+                  goToTab('distribucion');
+                  setTimeout(() => {
+                    const el = document.querySelector(`[data-dist-key="${key}"]`);
+                    if (el) {
+                      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                      el.classList.add('is-highlighted');
+                      setTimeout(() => el.classList.remove('is-highlighted'), 1600);
+                    }
+                  }, 120);
+                }}
+              />
+            )}
+
+            {activeTab === 'settings' && (
+              <TabSettings
+                gasUrl={gasUrl}
+                dbStatus={dbStatus}
+                onSaveGasUrl={(url) => {
+                  applyGasUrl(url);
+                  notify(url.trim() ? 'URL guardada. Cargando datos de la hoja…' : 'Sincronización desactivada: los datos quedan solo en este navegador.');
+                }}
+                onManualSync={async () => {
+                  if (!gasUrl) {
+                    notify('No hay URL de Apps Script: los datos solo se guardan en este navegador.', 'warn');
+                    return;
+                  }
+                  const ok = await pullFromCloud();
+                  notify(ok ? 'Datos actualizados desde Google Sheets.' : 'No se pudo conectar con la hoja. Revisa la URL e inténtalo de nuevo.', ok ? 'ok' : 'error');
+                }}
+                onExportBackup={() => FM.exportBackupJSON(byMonth)}
+                onImportBackup={(importedByMonth) => {
+                  if (!FM.isValidByMonth(importedByMonth)) {
+                    notify('Ese archivo no es un respaldo de Finanzas: se esperan meses "AAAA-MM" con categorías.', 'error');
+                    return;
+                  }
+                  if (window.confirm('¿Reemplazar todos los datos actuales con este respaldo?')) {
+                    persistState(importedByMonth);
+                    notify('Respaldo restaurado.', 'ok');
+                  }
+                }}
+                onImportError={(msg) => notify(msg, 'error')}
+              />
+            )}
+          </main>
+        </div>
+
+        {/* Navegación inferior (celular) */}
+        <nav className="bottom-nav" aria-label="Secciones">
+          {NAV_ITEMS.filter(i => i.tab !== 'settings').map(({ tab, label, Icon }) => (
+            <a
+              key={tab}
+              href={`#${tab}`}
+              className={`bottom-link ${activeTab === tab ? 'is-active' : ''}`}
+              aria-current={activeTab === tab ? 'page' : undefined}
+              onClick={(e) => { e.preventDefault(); goToTab(tab); }}
+            >
+              <Icon size={22} />
+              <span>{label}</span>
+            </a>
           ))}
         </nav>
 
@@ -544,11 +461,11 @@
         {modalState.type === 'addCategory' && (
           <AddCategoryModal
             categories={categories}
-            onClose={() => setModalState({ type: null, data: null })}
+            onClose={closeModal}
             onAddCategory={(newCat) => {
-              const updated = [...categories, newCat];
-              updateCurrentMonthData(updated, undefined);
-              setModalState({ type: null, data: null });
+              updateCurrentMonthData([...categories, newCat], undefined);
+              closeModal();
+              notify(`Categoría "${newCat.name}" agregada.`, 'ok');
             }}
           />
         )}
@@ -556,11 +473,12 @@
         {modalState.type === 'dbConfig' && (
           <DbConfigModal
             currentUrl={gasUrl}
-            onClose={() => setModalState({ type: null, data: null })}
+            dbStatus={dbStatus}
+            onClose={closeModal}
             onSaveUrl={(newUrl) => {
-              setGasUrlState(newUrl);
-              FM.setGasUrl(newUrl);
-              setModalState({ type: null, data: null });
+              applyGasUrl(newUrl);
+              closeModal();
+              notify(newUrl.trim() ? 'URL guardada. Cargando datos de la hoja…' : 'Sincronización desactivada.');
             }}
           />
         )}
@@ -568,21 +486,29 @@
         {modalState.type === 'note' && (
           <NoteModal
             initialNote={modalState.data}
-            onClose={() => setModalState({ type: null, data: null })}
+            onClose={closeModal}
             onSaveNote={(noteToSave) => {
               const currentNotes = appExtra.notes || [];
               const exists = currentNotes.some(n => n.id === noteToSave.id);
-              let nextNotes;
-              if (exists) {
-                nextNotes = currentNotes.map(n => n.id === noteToSave.id ? noteToSave : n);
-              } else {
-                nextNotes = [noteToSave, ...currentNotes];
-              }
+              const nextNotes = exists
+                ? currentNotes.map(n => n.id === noteToSave.id ? noteToSave : n)
+                : [noteToSave, ...currentNotes];
               updateCurrentMonthData(undefined, { ...appExtra, notes: nextNotes });
-              setModalState({ type: null, data: null });
+              closeModal();
             }}
           />
         )}
+
+        <div className="toast-region" role="status" aria-live="polite">
+          {toast && (
+            <div key={toast.id} className={`toast toast-${toast.tone}`}>
+              <span>{toast.message}</span>
+              <button type="button" className="toast-close" onClick={() => setToast(null)} aria-label="Cerrar aviso">
+                <Icons.Close />
+              </button>
+            </div>
+          )}
+        </div>
       </div>
     );
   }
@@ -590,52 +516,59 @@
   // ============================================================================
   // WIDGET: SELECTOR DE MES
   // ============================================================================
+  function shiftMonth(yyyyMM, delta) {
+    const [yyyy, mm] = yyyyMM.split('-');
+    const d = new Date(parseInt(yyyy, 10), parseInt(mm, 10) - 1 + delta, 1);
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+  }
+
   function MonthSelectorWidget({ currentMonth, byMonth, onSelectMonth }) {
+    const today = FM.getCurrentYYYYMM();
     const monthKeys = useMemo(() => {
       const set = new Set(Object.keys(byMonth || {}));
       set.add(currentMonth);
-      return Array.from(set).sort();
-    }, [byMonth, currentMonth]);
-
-    const handlePrev = () => {
-      const [yyyy, mm] = currentMonth.split('-');
-      const d = new Date(parseInt(yyyy, 10), parseInt(mm, 10) - 2, 1);
-      onSelectMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-    };
-
-    const handleNext = () => {
-      const [yyyy, mm] = currentMonth.split('-');
-      const d = new Date(parseInt(yyyy, 10), parseInt(mm, 10), 1);
-      onSelectMonth(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`);
-    };
-
-    const handleToday = () => {
-      onSelectMonth(FM.getCurrentYYYYMM());
-    };
+      set.add(today);
+      return Array.from(set).sort().reverse();
+    }, [byMonth, currentMonth, today]);
 
     return (
-      <div className="month-selector-widget">
-        <button className="btn btn-sm btn-secondary" onClick={handlePrev} title="Mes anterior">&lt;</button>
-        <select
-          className="form-input"
-          value={currentMonth}
-          onChange={(e) => onSelectMonth(e.target.value)}
-          style={{ padding: '0.2rem', minWidth: '130px', borderColor: 'rgba(255,255,255,0.1)', fontWeight: 600 }}
-        >
-          {monthKeys.map(m => (
-            <option key={m} value={m}>
-              {FM.formatMonthLabel(m)} {byMonth[m] ? '•' : ''}
-            </option>
-          ))}
-        </select>
-        <button className="btn btn-sm btn-secondary" onClick={handleNext} title="Mes siguiente">&gt;</button>
-        <button className="btn btn-sm btn-primary" onClick={handleToday} title="Ir a hoy">Hoy</button>
+      <div className="month-picker">
+        <button type="button" className="icon-btn" onClick={() => onSelectMonth(shiftMonth(currentMonth, -1))} aria-label="Mes anterior">
+          <Icons.ChevronLeft />
+        </button>
+        <label className="month-select">
+          <span className="sr-only">Mes</span>
+          <select value={currentMonth} onChange={(e) => onSelectMonth(e.target.value)}>
+            {monthKeys.map(m => (
+              <option key={m} value={m}>
+                {FM.formatMonthLabel(m)}{byMonth[m] ? '' : ' (vacío)'}
+              </option>
+            ))}
+          </select>
+          <span className="month-select-label" aria-hidden="true">{FM.formatMonthLabel(currentMonth)}</span>
+        </label>
+        <button type="button" className="icon-btn" onClick={() => onSelectMonth(shiftMonth(currentMonth, 1))} aria-label="Mes siguiente">
+          <Icons.ChevronRight />
+        </button>
+        {currentMonth !== today && (
+          <button type="button" className="btn btn-ghost btn-sm today-btn" onClick={() => onSelectMonth(today)}>
+            Hoy
+          </button>
+        )}
       </div>
     );
   }
 
+  // Encabezado de sección dentro de una vista
+  const SectionHead = ({ title, children, id }) => (
+    <div className="section-head">
+      <h2 id={id}>{title}</h2>
+      {children && <div className="section-actions">{children}</div>}
+    </div>
+  );
+
   // ============================================================================
-  // TAB 1: OVERVIEW
+  // VISTA 1: PRESUPUESTO
   // ============================================================================
   function TabOverview({
     currentMonth,
@@ -644,30 +577,18 @@
     collapsedCategories,
     onToggleCollapse,
     onUpdateCategories,
-    onOpenAddCategory,
-    onOpenCloudConfig,
-    dbStatus,
-    dbStatusTitle
+    onOpenAddCategory
   }) {
-    const monthLabel = FM.formatMonthLabel(currentMonth);
-
-    // Actualizar nombre o presupuesto inline
     const handleCategoryChange = (id, field, value) => {
-      const updated = categories.map(cat => {
-        if (cat.id === id) {
-          return {
-            ...cat,
-            [field]: field === 'budgeted' ? FM.parseCurrency(value) : value
-          };
-        }
-        return cat;
-      });
-      onUpdateCategories(updated);
+      onUpdateCategories(categories.map(cat => cat.id === id
+        ? { ...cat, [field]: field === 'budgeted' ? FM.parseCurrency(value) : value }
+        : cat));
     };
 
     // Eliminar categoría y todos sus descendientes
     const handleDeleteCategory = (id) => {
-      if (!window.confirm('¿Estás seguro de que deseas eliminar esta categoría y todas sus subcategorías?')) return;
+      const target = categories.find(c => c.id === id);
+      if (!window.confirm(`¿Eliminar "${target ? target.name : 'esta categoría'}" y sus subcategorías?`)) return;
       const idsToDelete = new Set([id]);
       let added = true;
       while (added) {
@@ -679,269 +600,174 @@
           }
         });
       }
-      const updated = categories.filter(c => !idsToDelete.has(c.id));
-      onUpdateCategories(updated);
+      onUpdateCategories(categories.filter(c => !idsToDelete.has(c.id)));
     };
 
-    // Construcción de filas de árbol
-    const topLevel = useMemo(() => {
-      return categories.filter(c => c.parentId === null);
-    }, [categories]);
+    const topLevel = useMemo(() => categories.filter(c => c.parentId === null), [categories]);
+    const sueldo = topLevel.filter(c => c.id === 'sueldo');
+    const expenseRoots = topLevel.filter(c => c.id !== 'sueldo');
 
-    // Cálculo Sueldo Cuadre
-    const budgetedExpenses = useMemo(() => {
-      return categories
-        .filter(c => c.id !== 'sueldo' && c.parentId === null)
-        .reduce((sum, c) => sum + (Number(c.budgeted) || 0), 0);
-    }, [categories]);
-
-    const sueldoCuadreDiff = metrics.totalIncome - budgetedExpenses;
+    // Composición del gasto respecto al ingreso
+    const scale = Math.max(metrics.totalIncome, metrics.totalExpenses, 1);
+    const composition = expenseRoots
+      .map(c => ({ id: c.id, name: c.name, amount: Number(c.budgeted) || 0, color: FM.getCategoryAccent(c, categories) }))
+      .filter(s => s.amount > 0);
+    const over = metrics.remainingBalance < 0;
 
     return (
-      <div className="main-column">
-        <header className="dashboard-header">
-          <h1 className="dashboard-title">Financial Budget Dashboard</h1>
-          <span className="dashboard-subtitle">{monthLabel || 'Overview'}</span>
-        </header>
+      <div className="view">
+        <section className="balance" aria-labelledby="balance-title">
+          <h2 id="balance-title" className="sr-only">Balance de {FM.formatMonthLabel(currentMonth)}</h2>
+          <dl className="balance-figures">
+            <div>
+              <dt>Ingresos</dt>
+              <dd><Money value={metrics.totalIncome} /></dd>
+            </div>
+            <div>
+              <dt>Presupuestado</dt>
+              <dd><Money value={metrics.totalExpenses} /></dd>
+            </div>
+            <div className="balance-main">
+              <dt>{over ? 'Excedido' : 'Disponible'}</dt>
+              <dd><Money value={metrics.remainingBalance} tone="auto" /></dd>
+            </div>
+          </dl>
 
-        {/* Tarjetas de Métricas Principales */}
-        <section className="metrics-grid">
-          <div className="metric-card income">
-            <div className="metric-icon-wrapper">
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10"></circle>
-                <line x1="12" y1="8" x2="12" y2="16"></line>
-                <line x1="8" y1="12" x2="16" y2="12"></line>
-              </svg>
+          <div className="composition">
+            <div className={`composition-bar ${composition.length === 0 ? 'is-empty' : ''}`} role="img" aria-label="Distribución del ingreso por categoría">
+              {composition.map(s => (
+                <span
+                  key={s.id}
+                  className="composition-seg"
+                  style={{ width: `${(s.amount / scale) * 100}%`, background: s.color }}
+                  title={`${s.name}: ${FM.formatMoney(s.amount)}`}
+                />
+              ))}
             </div>
-            <div className="metric-info">
-              <span className="metric-label">Total Income</span>
-              <span className="metric-value">{FM.formatMoney(metrics.totalIncome)}</span>
-              <span className="metric-period">Monthly</span>
-            </div>
-          </div>
-
-          <div className="metric-card expenses">
-            <div className="metric-icon-wrapper">
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="5" width="20" height="14" rx="2" ry="2"></rect>
-                <line x1="2" y1="10" x2="22" y2="10"></line>
-              </svg>
-            </div>
-            <div className="metric-info">
-              <span className="metric-label">Total Expenses</span>
-              <span className="metric-value">{FM.formatMoney(metrics.totalExpenses)}</span>
-              <span className="metric-period">Monthly</span>
-            </div>
-          </div>
-
-          <div className="metric-card balance">
-            <div className="metric-icon-wrapper">
-              <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="2" y="4" width="20" height="16" rx="2" ry="2"></rect>
-                <line x1="12" y1="4" x2="12" y2="20"></line>
-                <line x1="2" y1="12" x2="22" y2="12"></line>
-              </svg>
-            </div>
-            <div className="metric-info">
-              <span className="metric-label">Remaining Balance</span>
-              <span
-                className="metric-value"
-                style={{ color: metrics.remainingBalance >= 0 ? 'var(--color-success)' : 'var(--color-danger)' }}
-              >
-                {FM.formatMoney(metrics.remainingBalance)}
-              </span>
-              <span className="metric-period">Monthly</span>
-            </div>
+            {composition.length === 0 ? (
+              <p className="hint">Escribe el sueldo y los montos de cada categoría para ver cómo se reparte el ingreso.</p>
+            ) : (
+              <ul className="legend">
+                {composition.map(s => (
+                  <li key={s.id}>
+                    <span className="legend-dot" style={{ background: s.color }} />
+                    <span className="legend-name">{s.name}</span>
+                    <span className="legend-pct">{metrics.totalIncome > 0 ? `${Math.round((s.amount / metrics.totalIncome) * 100)}%` : '—'}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </section>
 
-        {/* Tabla General de Presupuesto */}
-        <section className="card">
-          <div className="card-header-flex">
-            <h2 className="card-title">Budget Overview</h2>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-              <button className="btn btn-primary btn-sm" onClick={onOpenAddCategory}>
-                <Icons.Plus />
-                Agregar Categoría
-              </button>
-              <button
-                className={`btn btn-secondary btn-sm db-status-btn ${dbStatus}`}
-                style={{ color: 'var(--color-text-light)' }}
-                title={dbStatusTitle}
-                onClick={onOpenCloudConfig}
-              >
-                <Icons.Cloud />
-              </button>
+        <section className="panel" aria-labelledby="budget-title">
+          <SectionHead title="Categorías" id="budget-title">
+            <button type="button" className="btn btn-primary btn-sm" onClick={onOpenAddCategory}>
+              <Icons.Plus /> Categoría
+            </button>
+          </SectionHead>
+
+          <div className="ledger" role="table" aria-label="Presupuesto por categoría">
+            <div className="ledger-head" role="row">
+              <span role="columnheader">Categoría</span>
+              <span role="columnheader" className="num">Monto</span>
+              <span role="columnheader" className="num ledger-diff-col">Por asignar</span>
+              <span role="columnheader" className="ledger-action-col"><span className="sr-only">Acciones</span></span>
             </div>
-          </div>
 
-          <div className="table-responsive">
-            <table className="budget-table">
-              <thead>
-                <tr>
-                  <th>Category</th>
-                  <th>Budgeted</th>
-                  <th>Difference</th>
-                </tr>
-              </thead>
-              <tbody>
-                {/* 1. Sueldo al inicio */}
-                {topLevel.filter(c => c.id === 'sueldo').map(cat => (
-                  <CategoryTreeRow
-                    key={cat.id}
-                    category={cat}
-                    depth={0}
-                    allCategories={categories}
-                    collapsedCategories={collapsedCategories}
-                    onToggleCollapse={onToggleCollapse}
-                    onChange={handleCategoryChange}
-                    onDelete={handleDeleteCategory}
-                  />
-                ))}
+            {[...sueldo, ...expenseRoots].map(cat => (
+              <CategoryTreeRow
+                key={cat.id}
+                category={cat}
+                depth={0}
+                allCategories={categories}
+                collapsedCategories={collapsedCategories}
+                onToggleCollapse={onToggleCollapse}
+                onChange={handleCategoryChange}
+                onDelete={handleDeleteCategory}
+              />
+            ))}
 
-                {/* 2. Demás categorías raíz */}
-                {topLevel.filter(c => c.id !== 'sueldo').map(cat => (
-                  <CategoryTreeRow
-                    key={cat.id}
-                    category={cat}
-                    depth={0}
-                    allCategories={categories}
-                    collapsedCategories={collapsedCategories}
-                    onToggleCollapse={onToggleCollapse}
-                    onChange={handleCategoryChange}
-                    onDelete={handleDeleteCategory}
-                  />
-                ))}
-
-                {/* 3. Fila de Sueldo Cuadre */}
-                <tr className="depth-0 parent-row" data-row-id="sueldo-cuadre">
-                  <td>
-                    <div className="cat-cell" style={{ fontWeight: 600 }}>
-                      <span style={{ paddingLeft: '24px' }}>Sueldo Cuadre</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="value-container">
-                      <span className="value-amount" style={{ fontWeight: 600 }}>
-                        {FM.formatMoney(budgetedExpenses)}
-                      </span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="value-container">
-                      <span
-                        className="value-amount"
-                        style={{
-                          color: sueldoCuadreDiff >= 0 ? 'var(--color-success)' : 'var(--color-danger)',
-                          fontWeight: 700
-                        }}
-                      >
-                        {FM.formatMoney(sueldoCuadreDiff)}
-                      </span>
-                    </div>
-                  </td>
-                </tr>
-              </tbody>
-            </table>
+            <div className="ledger-row ledger-total" role="row">
+              <span role="cell" className="ledger-name">Cuadre del sueldo</span>
+              <span role="cell" className="num"><Money value={metrics.totalExpenses} /></span>
+              <span role="cell" className="num ledger-diff-col"><Money value={metrics.remainingBalance} tone="auto" /></span>
+              <span role="cell" className="ledger-action-col" />
+            </div>
           </div>
         </section>
       </div>
     );
   }
 
-  // Fila recursiva de Categoría
-  function CategoryTreeRow({
-    category,
-    depth,
-    allCategories,
-    collapsedCategories,
-    onToggleCollapse,
-    onChange,
-    onDelete
-  }) {
+  // Fila recursiva de categoría
+  function CategoryTreeRow({ category, depth, allCategories, collapsedCategories, onToggleCollapse, onChange, onDelete }) {
     const children = allCategories.filter(c => c.parentId === category.id);
     const isParent = children.length > 0;
     const isCollapsed = collapsedCategories.has(category.id);
-
-    // Calcular Diferencia
-    let diffDisplay = '-';
-    let diffStyle = {};
-    if (isParent) {
-      const childSum = FM.getChildrenSum(allCategories, category.id);
-      const diff = (Number(category.budgeted) || 0) - childSum;
-      diffDisplay = diff >= 0 ? FM.formatMoney(diff) : `-$${FM.formatCurrency(Math.abs(diff))}`;
-      diffStyle = { color: diff >= 0 ? 'var(--color-success)' : 'var(--color-danger)', fontWeight: 700 };
-    }
-
-    const bgColor = FM.getCategoryColor(category, depth > 0, allCategories);
+    const diff = isParent ? (Number(category.budgeted) || 0) - FM.getChildrenSum(allCategories, category.id) : null;
+    const accent = FM.getCategoryAccent(category, allCategories);
 
     return (
       <React.Fragment>
-        <tr
-          className={`depth-${depth} ${isParent ? 'parent-row' : 'child-row'}`}
-          style={bgColor ? { backgroundColor: bgColor } : {}}
-        >
-          <td>
-            <div className="cat-cell" style={{ paddingLeft: `${depth * 18}px` }}>
-              {isParent ? (
-                <button
-                  className={`toggle-arrow ${isCollapsed ? '' : 'expanded'}`}
-                  onClick={() => onToggleCollapse(category.id)}
-                  title={isCollapsed ? 'Expandir' : 'Colapsar'}
-                >
-                  <Icons.ChevronRight />
-                </button>
-              ) : (
-                <span className="toggle-arrow" style={{ opacity: 0, pointerEvents: 'none' }}>
-                  <Icons.ChevronRight />
-                </span>
-              )}
-
+        <div className={`ledger-row depth-${depth} ${isParent ? 'is-parent' : ''}`} role="row">
+          <span role="cell" className="ledger-name">
+            {isParent ? (
+              <button
+                type="button"
+                className={`disclosure ${isCollapsed ? '' : 'is-open'}`}
+                onClick={() => onToggleCollapse(category.id)}
+                aria-expanded={!isCollapsed}
+                aria-label={`${isCollapsed ? 'Mostrar' : 'Ocultar'} subcategorías de ${category.name}`}
+              >
+                <Icons.Chevron />
+              </button>
+            ) : (
+              <span className="disclosure-spacer" />
+            )}
+            {depth === 0 && <span className="cat-dot" style={{ background: accent || 'var(--ink-3)' }} />}
+            <input
+              type="text"
+              className="inline-input"
+              value={category.name}
+              onChange={(e) => onChange(category.id, 'name', e.target.value)}
+              aria-label="Nombre de la categoría"
+              autoComplete="off"
+            />
+          </span>
+          <span role="cell" className="num">
+            <span className="amount-field">
+              <span aria-hidden="true">$</span>
               <input
                 type="text"
-                className="category-name-input"
-                value={category.name}
-                onChange={(e) => onChange(category.id, 'name', e.target.value)}
-                autoComplete="off"
+                className="inline-input amount-input"
+                defaultValue={FM.formatCurrency(category.budgeted || 0)}
+                key={`${category.id}-${category.budgeted}`}
+                onBlur={(e) => onChange(category.id, 'budgeted', e.target.value)}
+                onFocus={(e) => e.target.select()}
+                onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                inputMode="decimal"
+                aria-label={`Monto de ${category.name}`}
               />
+            </span>
+          </span>
+          <span role="cell" className="num ledger-diff-col">
+            {isParent ? <Money value={diff} tone="auto" /> : <span className="muted">—</span>}
+          </span>
+          <span role="cell" className="ledger-action-col">
+            {category.canDelete && category.id !== 'sueldo' && (
+              <button type="button" className="icon-btn icon-btn-quiet danger" onClick={() => onDelete(category.id)} aria-label={`Eliminar ${category.name}`}>
+                <Icons.Trash />
+              </button>
+            )}
+          </span>
+          {isParent && (
+            <span className="ledger-diff-inline" aria-hidden="true">
+              Por asignar <Money value={diff} tone="auto" />
+            </span>
+          )}
+        </div>
 
-              {category.canDelete && category.id !== 'sueldo' && (
-                <button
-                  className="delete-category-btn"
-                  onClick={() => onDelete(category.id)}
-                  title="Eliminar Categoría"
-                >
-                  <Icons.Trash />
-                </button>
-              )}
-            </div>
-          </td>
-          <td>
-            <div className="value-container">
-              <div style={{ display: 'flex', alignItems: 'center' }}>
-                <span style={{ fontWeight: 600, marginRight: '2px' }}>$</span>
-                <input
-                  type="text"
-                  className="budget-input"
-                  defaultValue={FM.formatCurrency(category.budgeted || 0)}
-                  key={`${category.id}-${category.budgeted}`}
-                  onBlur={(e) => onChange(category.id, 'budgeted', e.target.value)}
-                  inputMode="decimal"
-                />
-              </div>
-            </div>
-          </td>
-          <td>
-            <div className="value-container">
-              <span className="value-amount" style={diffStyle}>
-                {diffDisplay}
-              </span>
-            </div>
-          </td>
-        </tr>
-
-        {/* Renderizar hijos si no está colapsado */}
         {!isCollapsed && children.map(child => (
           <CategoryTreeRow
             key={child.id}
@@ -959,625 +785,405 @@
   }
 
   // ============================================================================
-  // TAB 2: SUMMARY
+  // VISTA 2: RESUMEN
   // ============================================================================
-  function TabSummary({ currentMonth, summaryTables, onUpdateSummaryTables }) {
-    const monthLabel = FM.formatMonthLabel(currentMonth);
+  function TabSummary({ summaryTables, onUpdateSummaryTables }) {
+    const updateTable = (tableId, fn) => onUpdateSummaryTables(summaryTables.map(t => t.id === tableId ? fn(t) : t));
 
-    const handleTitleChange = (tableId, newTitle) => {
-      onUpdateSummaryTables(summaryTables.map(t => t.id === tableId ? { ...t, title: newTitle } : t));
-    };
+    const handleRowChange = (tableId, rowIndex, field, value) => updateTable(tableId, t => {
+      const nextRows = [...t.rows];
+      nextRows[rowIndex] = { ...nextRows[rowIndex], [field]: field === 'amount' ? FM.parseCurrency(value) : value };
+      return { ...t, rows: nextRows };
+    });
 
-    const handleRowChange = (tableId, rowIndex, field, value) => {
-      onUpdateSummaryTables(summaryTables.map(t => {
-        if (t.id === tableId) {
-          const nextRows = [...t.rows];
-          nextRows[rowIndex] = {
-            ...nextRows[rowIndex],
-            [field]: field === 'amount' ? FM.parseCurrency(value) : value
-          };
-          return { ...t, rows: nextRows };
-        }
-        return t;
-      }));
-    };
+    const handleAddRow = (tableId) => updateTable(tableId, t => ({ ...t, rows: [...t.rows, { category: '', amount: 0, destino: '' }] }));
 
-    const handleAddRow = (tableId) => {
-      onUpdateSummaryTables(summaryTables.map(t => {
-        if (t.id === tableId) {
-          return {
-            ...t,
-            rows: [...t.rows, { category: '', amount: 0, destino: '' }]
-          };
-        }
-        return t;
-      }));
-    };
+    const handleRemoveRow = (tableId, rowIndex) => updateTable(tableId, t => ({ ...t, rows: t.rows.filter((_, i) => i !== rowIndex) }));
 
-    const handleDeleteTable = (tableId) => {
-      if (window.confirm('¿Eliminar esta tabla de resumen?')) {
-        onUpdateSummaryTables(summaryTables.filter(t => t.id !== tableId));
+    const handleDeleteTable = (table) => {
+      if (window.confirm(`¿Eliminar la tabla "${table.title}"?`)) {
+        onUpdateSummaryTables(summaryTables.filter(t => t.id !== table.id));
       }
     };
 
     const handleAddTable = () => {
-      const newId = 'summary-' + Date.now();
       const baseRows = (summaryTables[0] && summaryTables[0].rows) || FM.DEFAULT_SUMMARY_ROWS;
-      const newTable = {
-        id: newId,
-        title: `Year-End Summary ${summaryTables.length + 1}`,
+      onUpdateSummaryTables([...summaryTables, {
+        id: 'summary-' + Date.now(),
+        title: `Resumen ${summaryTables.length + 1}`,
         editable: true,
         rows: baseRows.map(r => ({ category: r.category, amount: 0, destino: '' }))
-      };
-      onUpdateSummaryTables([...summaryTables, newTable]);
+      }]);
     };
 
     return (
-      <div className="main-column" style={{ maxWidth: '100%' }}>
-        <header className="dashboard-header">
-          <h1 className="dashboard-title">Summary</h1>
-          <span className="dashboard-subtitle">{monthLabel || 'Year-End Overview'}</span>
-        </header>
+      <div className="view">
+        {summaryTables.length === 0 && (
+          <div className="empty">
+            <p>Aún no hay tablas de resumen. Úsalas para repartir ingresos extra (bonos, doble sueldo) y anotar su destino.</p>
+          </div>
+        )}
 
-        {summaryTables.map(table => {
-          const total = FM.computeSummaryTotal(table.rows);
-          return (
-            <section key={table.id} className="card summary-table-card" style={{ marginTop: '1.25rem' }}>
-              <div className="card-header-flex">
-                <input
-                  type="text"
-                  className="card-title"
-                  value={table.title}
-                  onChange={(e) => handleTitleChange(table.id, e.target.value)}
-                  style={{ background: 'transparent', border: 'none', outline: 'none', color: 'inherit', fontWeight: 700, width: 'auto' }}
-                />
-                {table.editable && (
-                  <button
-                    className="btn btn-secondary btn-sm"
-                    style={{ color: 'var(--color-danger)', borderColor: 'var(--color-danger-bg)' }}
-                    onClick={() => handleDeleteTable(table.id)}
-                  >
+        {summaryTables.map(table => (
+          <section key={table.id} className="panel">
+            <div className="section-head">
+              <input
+                type="text"
+                className="inline-input title-input"
+                value={table.title}
+                onChange={(e) => updateTable(table.id, t => ({ ...t, title: e.target.value }))}
+                aria-label="Título de la tabla"
+              />
+              {table.editable && (
+                <div className="section-actions">
+                  <button type="button" className="btn btn-ghost btn-sm danger" onClick={() => handleDeleteTable(table)}>
                     <Icons.Trash /> Eliminar
                   </button>
-                )}
-              </div>
+                </div>
+              )}
+            </div>
 
-              <div className="table-responsive">
-                <table className="summary-table">
-                  <thead>
-                    <tr>
-                      <th>Category</th>
-                      <th>Monto $</th>
-                      <th>DESTINO</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {table.rows.map((row, idx) => (
-                      <tr key={idx}>
-                        <td>
-                          <input
-                            type="text"
-                            className="summary-editable-input summary-cat-input"
-                            value={row.category || ''}
-                            placeholder="Categoría..."
-                            onChange={(e) => handleRowChange(table.id, idx, 'category', e.target.value)}
-                          />
-                        </td>
-                        <td>
-                          <span className="pill-amount pill-input-wrap">
-                            <input
-                              type="text"
-                              className="pill-input"
-                              placeholder="$0.00"
-                              defaultValue={row.amount ? FM.formatCurrency(row.amount) : ''}
-                              key={`${row.amount}-${idx}`}
-                              onBlur={(e) => handleRowChange(table.id, idx, 'amount', e.target.value)}
-                              inputMode="decimal"
-                            />
-                          </span>
-                        </td>
-                        <td>
-                          <span className="pill-destination pill-input-wrap">
-                            <input
-                              type="text"
-                              className="pill-input"
-                              placeholder="destino..."
-                              value={row.destino || ''}
-                              onChange={(e) => handleRowChange(table.id, idx, 'destino', e.target.value)}
-                            />
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                    <tr className="summary-row-total">
-                      <td>TOTAL</td>
-                      <td>
-                        <span className="pill-amount">
-                          {FM.formatMoney(total)}
-                        </span>
-                      </td>
-                      <td>
-                        <button
-                          className="btn btn-sm btn-secondary"
-                          style={{ padding: '0.2rem 0.5rem', fontSize: '0.75rem' }}
-                          onClick={() => handleAddRow(table.id)}
-                        >
-                          + Agregar fila
-                        </button>
-                      </td>
-                    </tr>
-                  </tbody>
-                </table>
+            <div className="sheet" role="table" aria-label={table.title}>
+              <div className="sheet-row sheet-head" role="row">
+                <span role="columnheader">Concepto</span>
+                <span role="columnheader" className="num">Monto</span>
+                <span role="columnheader">Destino</span>
+                <span role="columnheader"><span className="sr-only">Acciones</span></span>
               </div>
-            </section>
-          );
-        })}
+              {table.rows.map((row, idx) => (
+                <div className="sheet-row" role="row" key={idx}>
+                  <span role="cell">
+                    <input type="text" className="inline-input" value={row.category || ''} placeholder="Concepto" aria-label="Concepto"
+                      onChange={(e) => handleRowChange(table.id, idx, 'category', e.target.value)} />
+                  </span>
+                  <span role="cell" className="num">
+                    <span className="amount-field">
+                      <span aria-hidden="true">$</span>
+                      <input type="text" className="inline-input amount-input" placeholder="0.00" inputMode="decimal" aria-label="Monto"
+                        defaultValue={row.amount ? FM.formatCurrency(row.amount) : ''}
+                        key={`${row.amount}-${idx}`}
+                        onFocus={(e) => e.target.select()}
+                        onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                        onBlur={(e) => handleRowChange(table.id, idx, 'amount', e.target.value)} />
+                    </span>
+                  </span>
+                  <span role="cell">
+                    <input type="text" className="inline-input" value={row.destino || ''} placeholder="Destino" aria-label="Destino"
+                      onChange={(e) => handleRowChange(table.id, idx, 'destino', e.target.value)} />
+                  </span>
+                  <span role="cell">
+                    <button type="button" className="icon-btn icon-btn-quiet danger" onClick={() => handleRemoveRow(table.id, idx)} aria-label="Eliminar fila">
+                      <Icons.Close />
+                    </button>
+                  </span>
+                </div>
+              ))}
+              <div className="sheet-row sheet-total" role="row">
+                <span role="cell">Total</span>
+                <span role="cell" className="num"><Money value={FM.computeSummaryTotal(table.rows)} /></span>
+                <span role="cell" />
+                <span role="cell" />
+              </div>
+            </div>
 
-        <div style={{ marginTop: '1rem', display: 'flex', justifyContent: 'flex-start' }}>
-          <button
-            className="btn btn-secondary"
-            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600 }}
-            onClick={handleAddTable}
-          >
-            <Icons.Plus /> Agregar otra tabla
-          </button>
-        </div>
+            <button type="button" className="btn btn-ghost btn-sm add-row" onClick={() => handleAddRow(table.id)}>
+              <Icons.Plus /> Agregar fila
+            </button>
+          </section>
+        ))}
+
+        <button type="button" className="btn btn-secondary" onClick={handleAddTable}>
+          <Icons.Plus /> Nueva tabla de resumen
+        </button>
       </div>
     );
   }
 
   // ============================================================================
-  // TAB 3: DISTRIBUCIÓN
+  // VISTA 3: DISTRIBUCIÓN
   // ============================================================================
-  function TabDistribucion({
-    currentMonth,
-    byMonth,
-    categories,
-    distribucionData,
-    distGraphMode,
-    onChangeGraphMode,
-    onResetMonth,
-    onUpdateDistribucion
-  }) {
-    const monthLabel = FM.formatMonthLabel(currentMonth);
+  const DIST_CARDS = [
+    { key: 'qik', title: 'QIK', type: 'salida' },
+    { key: 'gastos-m-p2', title: 'Gastos M parte 2 a cuenta corriente Popular', type: 'entrada' },
+    { key: 'apap', title: 'APAP', type: 'salida' },
+    { key: 'gastos-m-p1', title: 'Gastos M parte 1 a cuenta corriente Popular', type: 'entrada' }
+  ];
+
+  function TabDistribucion({ currentMonth, byMonth, categories, distribucionData, distGraphMode, onChangeGraphMode, onResetMonth, onUpdateDistribucion }) {
     const currentYear = currentMonth.split('-')[0];
+    const annualData = useMemo(() => FM.computeAnnualDistribucionData(byMonth, currentYear), [byMonth, currentYear]);
+    const rootCats = categories.filter(c => c.parentId === null);
 
-    // Datos del gráfico anual
-    const annualData = useMemo(() => {
-      return FM.computeAnnualDistribucionData(byMonth, currentYear);
-    }, [byMonth, currentYear]);
+    const emptyCard = { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] };
 
-    // Manejar cambio en filas de composición
-    const handleCardRowChange = (cardKey, rowIndex, field, value) => {
-      const card = distribucionData[cardKey] || { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] };
+    const updateCard = (cardKey, fn) => {
+      const card = distribucionData[cardKey] || emptyCard;
+      onUpdateDistribucion({ ...distribucionData, [cardKey]: fn(card) });
+    };
+
+    const handleCardRowChange = (cardKey, rowIndex, field, value) => updateCard(cardKey, card => {
       const nextRows = [...(card.rows || [])];
-
       if (field === 'catId') {
-        const suggested = FM.computeDistribucionSuggested(categories, value, '');
-        nextRows[rowIndex] = { catId: value, subId: '', amount: suggested };
+        nextRows[rowIndex] = { catId: value, subId: '', amount: FM.computeDistribucionSuggested(categories, value, '') };
       } else if (field === 'subId') {
         const catId = nextRows[rowIndex].catId;
-        const suggested = FM.computeDistribucionSuggested(categories, catId, value);
-        nextRows[rowIndex] = { ...nextRows[rowIndex], subId: value, amount: suggested };
+        nextRows[rowIndex] = { ...nextRows[rowIndex], subId: value, amount: FM.computeDistribucionSuggested(categories, catId, value) };
       } else if (field === 'amount') {
         nextRows[rowIndex] = { ...nextRows[rowIndex], amount: FM.parseCurrency(value) };
       }
+      return { ...card, rows: nextRows };
+    });
 
-      onUpdateDistribucion({
-        ...distribucionData,
-        [cardKey]: { ...card, rows: nextRows }
-      });
-    };
+    const handleAddRow = (cardKey) => updateCard(cardKey, card => ({ ...card, rows: [...(card.rows || []), { catId: '', subId: '', amount: 0 }] }));
 
-    const handleAddRow = (cardKey) => {
-      const card = distribucionData[cardKey] || { pendingDone: false, rows: [] };
-      onUpdateDistribucion({
-        ...distribucionData,
-        [cardKey]: { ...card, rows: [...(card.rows || []), { catId: '', subId: '', amount: 0 }] }
-      });
-    };
+    const handleRemoveRow = (cardKey, rowIndex) => updateCard(cardKey, card => (
+      (card.rows || []).length <= 1 ? card : { ...card, rows: card.rows.filter((_, i) => i !== rowIndex) }
+    ));
 
-    const handleRemoveRow = (cardKey, rowIndex) => {
-      const card = distribucionData[cardKey] || { pendingDone: false, rows: [] };
-      if ((card.rows || []).length <= 1) return;
-      onUpdateDistribucion({
-        ...distribucionData,
-        [cardKey]: { ...card, rows: card.rows.filter((_, i) => i !== rowIndex) }
-      });
-    };
-
-    const handleToggleCardStatus = (cardKey) => {
-      const card = distribucionData[cardKey] || { pendingDone: false, rows: [] };
-      onUpdateDistribucion({
-        ...distribucionData,
-        [cardKey]: { ...card, pendingDone: !card.pendingDone }
-      });
-    };
-
-    const distCardsMeta = [
-      { key: 'qik', title: 'QIK', type: 'salida' },
-      { key: 'gastos-m-p2', title: 'GASTOS M parte 2 a Cuenta Corriente popular', type: 'entrada' },
-      { key: 'apap', title: 'APAP', type: 'salida' },
-      { key: 'gastos-m-p1', title: 'GASTOS M parte 1 a Cuenta Corriente popular', type: 'entrada' },
-    ];
+    const pendingCount = DIST_CARDS.filter(m => !(distribucionData[m.key] || {}).pendingDone).length;
 
     return (
-      <div className="dist-layout">
-        <header className="dashboard-header">
-          <h1 className="dashboard-title">Distribución</h1>
-          <span className="dashboard-subtitle">{monthLabel || 'Monthly Summary'}</span>
-        </header>
-
-        {/* Gráfico Anual */}
-        <div className="card" style={{ marginBottom: '1rem' }}>
-          <div className="card-header-flex">
-            <h2 className="card-title">Distribución Anual {currentYear}</h2>
-            <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-              <label style={{ fontSize: '0.8rem', fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: '5px', cursor: 'pointer' }}>
-                $ Monto
-                <input
-                  type="checkbox"
-                  checked={distGraphMode === 'percent'}
-                  onChange={(e) => onChangeGraphMode(e.target.checked ? 'percent' : 'amount')}
-                  style={{ transform: 'scale(1.2)' }}
-                />
-                % Dist
-              </label>
-              <button
-                className="btn btn-sm btn-secondary"
-                style={{ color: 'var(--color-danger)' }}
-                onClick={onResetMonth}
-              >
-                Restablecer Mes
-              </button>
+      <div className="view">
+        <section className="panel" aria-labelledby="annual-title">
+          <SectionHead title={`Año ${currentYear}`} id="annual-title">
+            <div className="segmented" role="group" aria-label="Escala del gráfico">
+              <button type="button" aria-pressed={distGraphMode === 'amount'} onClick={() => onChangeGraphMode('amount')}>Monto</button>
+              <button type="button" aria-pressed={distGraphMode === 'percent'} onClick={() => onChangeGraphMode('percent')}>% del ingreso</button>
             </div>
-          </div>
+          </SectionHead>
 
-          <div className="dist-graph-container">
-            {annualData.monthlyBreakdown.map((col, idx) => (
-              <div key={col.monthKey} className="dist-graph-col" style={{ opacity: col.isFuture ? 0.45 : 1 }}>
-                <div className="dist-bar-wrap">
-                  {col.segments.map(seg => {
-                    const color = FM.getCategoryColor({ id: seg.id, parentId: null }, false, categories) || '#38bdf8';
-                    let heightStyle = '0%';
-                    if (distGraphMode === 'percent') {
-                      heightStyle = col.income > 0 ? `${(seg.amount / col.income) * 100}%` : '0%';
-                    } else {
-                      heightStyle = `${(seg.amount / annualData.maxIncome) * 100}%`;
-                    }
-                    return (
-                      <div
-                        key={seg.id}
-                        className="dist-bar-segment"
-                        style={{ backgroundColor: color, height: heightStyle }}
-                        title={`${col.label} · ${seg.name}: ${FM.formatMoney(seg.amount)}`}
-                      />
-                    );
-                  })}
-                </div>
-                <div className="dist-bar-label">{col.label}</div>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        {/* Grid de Tarjetas de Distribución */}
-        <div className="dist-grid">
-          {distCardsMeta.map(meta => {
-            const cardData = distribucionData[meta.key] || { pendingDone: false, rows: [{ catId: '', subId: '', amount: 0 }] };
-            const cardTotal = FM.computeDistribucionCardTotal(cardData);
-
-            return (
-              <div key={meta.key} className="tarjeta-card dist-card" data-dist-key={meta.key}>
-                <div className="tarjeta-top">
-                  <div className="tarjeta-meta">
-                    <span className={`badge ${meta.type}`}>{meta.type}</span>
-                    <span className="tarjeta-desc">{meta.title}</span>
-                  </div>
-                  <span className="tarjeta-amount">{FM.formatMoney(cardTotal)}</span>
-                </div>
-
-                <div className="tarjeta-bottom">
-                  <button
-                    className="status-toggle"
-                    data-done={cardData.pendingDone ? 'true' : 'false'}
-                    onClick={() => handleToggleCardStatus(meta.key)}
-                  >
-                    <span className="status-dot"></span>
-                    <span className="status-label">{cardData.pendingDone ? 'DONE' : 'PENDIENTE'}</span>
-                  </button>
-                </div>
-
-                <div className="tarjeta-composition">
-                  <div className="composition-header">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="3"></circle>
-                      <path d="M12 2v2M12 20v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M2 12h2M20 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"></path>
-                    </svg>
-                    Composición
-                  </div>
-
-                  <div className="comp-rows-container">
-                    {(cardData.rows || []).map((row, rIdx) => {
-                      const rootCats = categories.filter(c => c.parentId === null);
-                      const subCats = row.catId ? categories.filter(c => c.parentId === row.catId) : [];
-                      const hasDiff = row.catId && subCats.length > 0;
-
+          <div className="year-chart" role="img" aria-label={`Gasto presupuestado por mes en ${currentYear}`}>
+            {annualData.monthlyBreakdown.map(col => {
+              const isCurrent = col.monthKey === currentMonth;
+              return (
+                <div key={col.monthKey} className={`year-col ${col.isFuture ? 'is-future' : ''} ${isCurrent ? 'is-current' : ''}`}>
+                  <div className="year-bar">
+                    {col.segments.map(seg => {
+                      const height = distGraphMode === 'percent'
+                        ? (col.income > 0 ? (seg.amount / col.income) * 100 : 0)
+                        : (seg.amount / annualData.maxIncome) * 100;
                       return (
-                        <div key={rIdx} className="composition-row">
-                          <select
-                            className="comp-select"
-                            value={row.catId || ''}
-                            onChange={(e) => handleCardRowChange(meta.key, rIdx, 'catId', e.target.value)}
-                          >
-                            <option value="">— Categoría —</option>
-                            {rootCats.map(c => (
-                              <option key={c.id} value={c.id}>{c.name}</option>
-                            ))}
-                          </select>
-
-                          <select
-                            className="comp-select"
-                            disabled={subCats.length === 0}
-                            value={row.subId || ''}
-                            onChange={(e) => handleCardRowChange(meta.key, rIdx, 'subId', e.target.value)}
-                          >
-                            <option value="">— Subcategoría —</option>
-                            {subCats.length > 0 && <option value="__todas__">Todas</option>}
-                            {subCats.map(s => (
-                              <option key={s.id} value={s.id}>{s.name}</option>
-                            ))}
-                            {hasDiff && (
-                              <option value={`${row.catId}-difference`}>Difference</option>
-                            )}
-                          </select>
-
-                          <input
-                            type="text"
-                            className="comp-amount-input"
-                            placeholder="$0.00"
-                            inputMode="decimal"
-                            defaultValue={row.amount ? FM.formatCurrency(row.amount) : ''}
-                            key={`${row.amount}-${rIdx}`}
-                            onBlur={(e) => handleCardRowChange(meta.key, rIdx, 'amount', e.target.value)}
-                          />
-
-                          <button
-                            className="comp-remove-row"
-                            title="Eliminar fila"
-                            onClick={() => handleRemoveRow(meta.key, rIdx)}
-                          >
-                            ×
-                          </button>
-                        </div>
+                        <span
+                          key={seg.id}
+                          className="year-seg"
+                          style={{ height: `${Math.min(height, 100)}%`, background: FM.getCategoryAccent({ id: seg.id, parentId: null }, categories) || 'var(--ink-3)' }}
+                          title={`${col.label} · ${seg.name}: ${FM.formatMoney(seg.amount)}`}
+                        />
                       );
                     })}
                   </div>
-
-                  <button className="comp-add-row-btn" onClick={() => handleAddRow(meta.key)}>
-                    <Icons.Plus /> Agregar categoría
-                  </button>
+                  <span className="year-label">{col.label.replace('.', '')}</span>
                 </div>
-              </div>
+              );
+            })}
+          </div>
+        </section>
+
+        <SectionHead title="Transferencias del mes">
+          <span className="muted small">{pendingCount === 0 ? 'Todo hecho' : `${pendingCount} pendiente${pendingCount === 1 ? '' : 's'}`}</span>
+        </SectionHead>
+
+        <div className="dist-grid">
+          {DIST_CARDS.map(meta => {
+            const cardData = distribucionData[meta.key] || emptyCard;
+            return (
+              <article key={meta.key} className={`panel dist-card ${cardData.pendingDone ? 'is-done' : ''}`} data-dist-key={meta.key}>
+                <header className="dist-card-head">
+                  <div>
+                    <span className={`flow flow-${meta.type}`}>{meta.type === 'salida' ? 'Salida' : 'Entrada'}</span>
+                    <h3>{meta.title}</h3>
+                  </div>
+                  <Money value={FM.computeDistribucionCardTotal(cardData)} />
+                </header>
+
+                <div className="dist-rows">
+                  {(cardData.rows || []).map((row, rIdx) => {
+                    const subCats = row.catId ? categories.filter(c => c.parentId === row.catId) : [];
+                    return (
+                      <div key={rIdx} className="dist-row">
+                        <select className="select" value={row.catId || ''} aria-label="Categoría"
+                          onChange={(e) => handleCardRowChange(meta.key, rIdx, 'catId', e.target.value)}>
+                          <option value="">Categoría</option>
+                          {rootCats.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                        </select>
+                        <select className="select" disabled={subCats.length === 0} value={row.subId || ''} aria-label="Subcategoría"
+                          onChange={(e) => handleCardRowChange(meta.key, rIdx, 'subId', e.target.value)}>
+                          <option value="">{subCats.length === 0 ? 'Sin subcategorías' : 'Subcategoría'}</option>
+                          {subCats.length > 0 && <option value="__todas__">Todas</option>}
+                          {subCats.map(s => <option key={s.id} value={s.id}>{s.name}</option>)}
+                          {subCats.length > 0 && <option value={`${row.catId}-difference`}>Por asignar</option>}
+                        </select>
+                        <span className="amount-field boxed">
+                          <span aria-hidden="true">$</span>
+                          <input type="text" className="inline-input amount-input" placeholder="0.00" inputMode="decimal" aria-label="Monto"
+                            defaultValue={row.amount ? FM.formatCurrency(row.amount) : ''}
+                            key={`${row.amount}-${rIdx}`}
+                            onFocus={(e) => e.target.select()}
+                            onKeyDown={(e) => { if (e.key === 'Enter') e.target.blur(); }}
+                            onBlur={(e) => handleCardRowChange(meta.key, rIdx, 'amount', e.target.value)} />
+                        </span>
+                        <button type="button" className="icon-btn icon-btn-quiet danger" title="Eliminar fila" aria-label="Eliminar fila"
+                          disabled={(cardData.rows || []).length <= 1}
+                          onClick={() => handleRemoveRow(meta.key, rIdx)}>
+                          <Icons.Close />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+
+                <footer className="dist-card-foot">
+                  <button type="button" className="btn btn-ghost btn-sm" onClick={() => handleAddRow(meta.key)}>
+                    <Icons.Plus /> Agregar fila
+                  </button>
+                  <StatusToggle
+                    done={cardData.pendingDone}
+                    label={meta.title}
+                    onToggle={() => updateCard(meta.key, card => ({ ...card, pendingDone: !card.pendingDone }))}
+                  />
+                </footer>
+              </article>
             );
           })}
+        </div>
+
+        <div className="danger-zone">
+          <div>
+            <strong>Restablecer {FM.formatMonthLabel(currentMonth)}</strong>
+            <p className="muted small">Vuelve este mes a la plantilla base. Los demás meses no cambian.</p>
+          </div>
+          <button type="button" className="btn btn-secondary btn-sm danger" onClick={onResetMonth}>Restablecer mes</button>
         </div>
       </div>
     );
   }
 
   // ============================================================================
-  // TAB 4: TARJETAS
+  // VISTA 4: TARJETAS
   // ============================================================================
-  function TabTarjetas({ currentMonth, tarjetasData, onUpdateTarjetas }) {
-    const monthLabel = FM.formatMonthLabel(currentMonth);
+  const CREDIT_CARDS = [
+    { key: 'tc-contigo', name: 'TC Contigo' },
+    { key: 'tc-jetblue', name: 'TC JetBlue' },
+    { key: 'tc-apap', name: 'TC APAP' }
+  ];
 
-    const toggleCurrency = (cardKey, currency) => {
+  function TabTarjetas({ tarjetasData, onUpdateTarjetas }) {
+    const toggleCurrency = (cardKey, field) => {
       const card = tarjetasData[cardKey] || { usdDone: false, dopDone: false };
-      const field = currency === 'usd' ? 'usdDone' : 'dopDone';
-      onUpdateTarjetas({
-        ...tarjetasData,
-        [cardKey]: { ...card, [field]: !card[field] }
-      });
+      onUpdateTarjetas({ ...tarjetasData, [cardKey]: { ...card, [field]: !card[field] } });
     };
 
-    const cards = [
-      { key: 'tc-contigo', name: 'TC CONTIGO' },
-      { key: 'tc-jetblue', name: 'TC JET BLUE' },
-      { key: 'tc-apap', name: 'TC APAP' },
-    ];
+    const total = CREDIT_CARDS.length * 2;
+    const done = CREDIT_CARDS.reduce((n, c) => {
+      const s = tarjetasData[c.key] || {};
+      return n + (s.usdDone ? 1 : 0) + (s.dopDone ? 1 : 0);
+    }, 0);
 
     return (
-      <div className="main-column" style={{ maxWidth: '100%' }}>
-        <header className="dashboard-header">
-          <h1 className="dashboard-title">Tarjetas</h1>
-          <span className="dashboard-subtitle">{monthLabel || 'Estado de pago por moneda'}</span>
-        </header>
+      <div className="view">
+        <section className="panel" aria-labelledby="cards-title">
+          <SectionHead title="Pagos de tarjetas" id="cards-title">
+            <span className="muted small">{done} de {total} pagos hechos</span>
+          </SectionHead>
+          <div className="progress" aria-hidden="true"><span style={{ width: `${(done / total) * 100}%` }} /></div>
 
-        <section className="card">
-          <div className="card-header-flex">
-            <h2 className="card-title">Composición de Tarjetas</h2>
-          </div>
-          <div className="tc-table-wrapper">
-            <table className="tc-table">
-              <thead>
-                <tr>
-                  <th className="tc-th-card">TARJETA C</th>
-                  <th className="tc-th-currency">USD</th>
-                  <th className="tc-th-currency">DOP</th>
-                </tr>
-              </thead>
-              <tbody>
-                {cards.map(c => {
-                  const state = tarjetasData[c.key] || { usdDone: false, dopDone: false };
-                  return (
-                    <tr key={c.key} className="tc-row" data-card-key={c.key}>
-                      <td className="tc-name">{c.name}</td>
-                      <td className="tc-status-cell">
-                        <button
-                          className="status-toggle"
-                          data-done={state.usdDone ? 'true' : 'false'}
-                          onClick={() => toggleCurrency(c.key, 'usd')}
-                        >
-                          <span className="status-dot"></span>
-                          <span className="status-label">{state.usdDone ? 'DONE' : 'PENDIENTE'}</span>
-                        </button>
-                      </td>
-                      <td className="tc-status-cell">
-                        <button
-                          className="status-toggle"
-                          data-done={state.dopDone ? 'true' : 'false'}
-                          onClick={() => toggleCurrency(c.key, 'dop')}
-                        >
-                          <span className="status-dot"></span>
-                          <span className="status-label">{state.dopDone ? 'DONE' : 'PENDIENTE'}</span>
-                        </button>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
+          <ul className="card-list">
+            {CREDIT_CARDS.map(c => {
+              const state = tarjetasData[c.key] || { usdDone: false, dopDone: false };
+              return (
+                <li key={c.key} className="card-item" data-card-key={c.key}>
+                  <span className="card-name"><Icons.Card /> {c.name}</span>
+                  <div className="card-currencies">
+                    <div className="currency">
+                      <span className="currency-code">USD</span>
+                      <StatusToggle done={state.usdDone} label={`${c.name} en USD`} onToggle={() => toggleCurrency(c.key, 'usdDone')} />
+                    </div>
+                    <div className="currency">
+                      <span className="currency-code">DOP</span>
+                      <StatusToggle done={state.dopDone} label={`${c.name} en DOP`} onToggle={() => toggleCurrency(c.key, 'dopDone')} />
+                    </div>
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
         </section>
       </div>
     );
   }
 
   // ============================================================================
-  // TAB 5: NOTES
+  // VISTA 5: NOTAS
   // ============================================================================
-  function TabNotes({
-    currentMonth,
-    notes,
-    distribucionData,
-    onOpenAddNote,
-    onOpenEditNote,
-    onUpdateNotes,
-    onNavigateToDist
-  }) {
-    const monthLabel = FM.formatMonthLabel(currentMonth);
+  const TIMELINE_ITEMS = [
+    { key: 'qik', label: 'QIK' },
+    { key: 'gastos-m-p2', label: 'Gastos M parte 2' },
+    { key: 'apap', label: 'APAP' },
+    { key: 'gastos-m-p1', label: 'Gastos M parte 1' }
+  ];
 
-    const togglePin = (noteId) => {
-      onUpdateNotes(notes.map(n => n.id === noteId ? { ...n, pinned: !n.pinned } : n));
-    };
+  function parseNoteDate(str) {
+    if (!str) return new Date(0);
+    const parts = str.split('/');
+    if (parts.length === 3) return new Date(parts[2], parts[1] - 1, parts[0]);
+    return new Date(str);
+  }
 
-    const deleteNote = (noteId) => {
-      if (window.confirm('¿Estás seguro de que deseas eliminar esta nota?')) {
-        onUpdateNotes(notes.filter(n => n.id !== noteId));
+  function TabNotes({ notes, distribucionData, onOpenAddNote, onOpenEditNote, onUpdateNotes, onNavigateToDist }) {
+    const togglePin = (noteId) => onUpdateNotes(notes.map(n => n.id === noteId ? { ...n, pinned: !n.pinned } : n));
+
+    const deleteNote = (note) => {
+      if (window.confirm(`¿Eliminar la nota "${note.title || 'Sin título'}"?`)) {
+        onUpdateNotes(notes.filter(n => n.id !== note.id));
       }
     };
 
-    const parseDate = (str) => {
-      if (!str) return new Date(0);
-      const parts = str.split('/');
-      if (parts.length === 3) return new Date(parts[2], parts[1] - 1, parts[0]);
-      return new Date(str);
-    };
+    const sorted = useMemo(() => [...notes].sort((a, b) => parseNoteDate(b.date) - parseNoteDate(a.date)), [notes]);
+    const pinnedNotes = sorted.filter(n => n.pinned);
+    const otherNotes = sorted.filter(n => !n.pinned);
 
-    const pinnedNotes = useMemo(() => {
-      return notes.filter(n => n.pinned).sort((a, b) => parseDate(b.date) - parseDate(a.date));
-    }, [notes]);
-
-    const recentNotes = useMemo(() => {
-      return notes.filter(n => !n.pinned).sort((a, b) => parseDate(b.date) - parseDate(a.date));
-    }, [notes]);
-
-    const timelineItems = [
-      { key: 'qik', label: 'QIK', color: 'orange' },
-      { key: 'gastos-m-p2', label: 'GASTOS M P2', color: 'pink' },
-      { key: 'apap', label: 'APAP', color: 'blue' },
-      { key: 'gastos-m-p1', label: 'GASTOS M P1', color: 'pink' }
-    ];
+    const renderList = (list) => (
+      <div className="notes-grid">
+        {list.map(n => <NoteCard key={n.id} note={n} onTogglePin={togglePin} onEdit={onOpenEditNote} onDelete={deleteNote} />)}
+      </div>
+    );
 
     return (
-      <div className="notes-layout">
-        <div className="notes-main-content">
-          <header className="dashboard-header">
-            <h1 className="dashboard-title">Financial</h1>
-            <span className="dashboard-subtitle">{monthLabel || 'Financial Notes and Annotations Journal'}</span>
-          </header>
+      <div className="view notes-layout">
+        <div className="notes-main">
+          <SectionHead title="Fijadas">
+            <button type="button" className="btn btn-primary btn-sm" onClick={onOpenAddNote}>
+              <Icons.Plus /> Nota
+            </button>
+          </SectionHead>
+          {pinnedNotes.length === 0
+            ? <p className="empty-inline">Fija una nota con el ícono de chincheta para tenerla siempre arriba.</p>
+            : renderList(pinnedNotes)}
 
-          {/* Pinned Notes */}
-          <div className="notes-section">
-            <h2 className="notes-section-title">Pinned Notes</h2>
-            <div className="notes-grid">
-              {pinnedNotes.length === 0 ? (
-                <div className="no-notes-msg" style={{ gridColumn: 'span 2', color: 'var(--color-text-light)', fontStyle: 'italic', textAlign: 'center', padding: '1.5rem 0' }}>
-                  No hay notas fijadas
-                </div>
-              ) : (
-                pinnedNotes.map(n => (
-                  <NoteCard
-                    key={n.id}
-                    note={n}
-                    onTogglePin={togglePin}
-                    onEdit={onOpenEditNote}
-                    onDelete={deleteNote}
-                  />
-                ))
-              )}
-            </div>
-          </div>
-
-          {/* Recent Notes */}
-          <div className="notes-section" style={{ marginTop: '2rem' }}>
-            <h2 className="notes-section-title">Recent Notes</h2>
-            <div className="notes-grid">
-              {recentNotes.length === 0 ? (
-                <div className="no-notes-msg" style={{ gridColumn: 'span 2', color: 'var(--color-text-light)', fontStyle: 'italic', textAlign: 'center', padding: '1.5rem 0' }}>
-                  No hay notas recientes
-                </div>
-              ) : (
-                recentNotes.map(n => (
-                  <NoteCard
-                    key={n.id}
-                    note={n}
-                    onTogglePin={togglePin}
-                    onEdit={onOpenEditNote}
-                    onDelete={deleteNote}
-                  />
-                ))
-              )}
-            </div>
-          </div>
+          <SectionHead title="Todas las demás" />
+          {otherNotes.length === 0
+            ? <p className="empty-inline">No hay más notas.</p>
+            : renderList(otherNotes)}
         </div>
 
-        {/* Sidebar de Timeline de Transacciones */}
-        <div className="notes-sidebar-column">
-          <h2 className="notes-section-title">Quick Links to Recent Transactions</h2>
-          <div className="transaction-timeline">
-            {timelineItems.map(item => {
-              const cardData = distribucionData[item.key];
-              const total = FM.computeDistribucionCardTotal(cardData);
+        <aside className="panel notes-aside" aria-labelledby="links-title">
+          <SectionHead title="Transferencias del mes" id="links-title" />
+          <ul className="link-list">
+            {TIMELINE_ITEMS.map(item => {
+              const card = distribucionData[item.key];
               return (
-                <div
-                  key={item.key}
-                  className="timeline-item"
-                  onClick={() => onNavigateToDist(item.key)}
-                  style={{ cursor: 'pointer' }}
-                >
-                  <div className="timeline-dot-wrapper">
-                    <div className={`timeline-dot ${item.color}`}>
-                      <Icons.Grid />
-                    </div>
-                    <div className="timeline-line"></div>
-                  </div>
-                  <div className="timeline-content">
-                    <div className="timeline-meta">{item.label}</div>
-                    <div className="timeline-amount">{FM.formatMoney(total)}</div>
-                  </div>
-                </div>
+                <li key={item.key}>
+                  <button type="button" className="link-row" onClick={() => onNavigateToDist(item.key)}>
+                    <span className={`link-state ${card && card.pendingDone ? 'is-done' : ''}`} aria-hidden="true" />
+                    <span className="link-label">{item.label}</span>
+                    <Money value={FM.computeDistribucionCardTotal(card)} />
+                    <Icons.Arrow />
+                  </button>
+                </li>
               );
             })}
-          </div>
-        </div>
-
-        {/* Botón Flotante para agregar nota */}
-        <button className="fab-btn" onClick={onOpenAddNote} title="Agregar Nueva Nota">
-          <Icons.Plus />
-          <span>Add New Note</span>
-        </button>
+          </ul>
+        </aside>
       </div>
     );
   }
@@ -1585,143 +1191,96 @@
   function NoteCard({ note, onTogglePin, onEdit, onDelete }) {
     const tag = note.tag || 'STRATEGY';
     return (
-      <div className={`note-card ${note.pinned ? 'pinned-note' : ''}`}>
-        <div className="note-card-header">
-          <span className={`note-tag tag-${tag.toLowerCase()}`}>{tag}</span>
+      <article className="note">
+        <header className="note-head">
+          <span className={`tag tag-${tag.toLowerCase()}`}>{NOTE_TAGS[tag] || tag}</span>
+          <time className="note-date">{note.date}</time>
           <div className="note-actions">
-            <button className="note-action-btn pin-toggle-btn" onClick={() => onTogglePin(note.id)} title={note.pinned ? 'Desfijar' : 'Fijar'}>
+            <button type="button" className={`icon-btn icon-btn-quiet ${note.pinned ? 'is-active' : ''}`} onClick={() => onTogglePin(note.id)}
+              aria-pressed={!!note.pinned} aria-label={note.pinned ? 'Desfijar nota' : 'Fijar nota'}>
               <Icons.Pin filled={note.pinned} />
             </button>
-            <button className="note-action-btn edit-note-btn" onClick={() => onEdit(note)} title="Editar">
+            <button type="button" className="icon-btn icon-btn-quiet" onClick={() => onEdit(note)} aria-label="Editar nota">
               <Icons.Edit />
             </button>
-            <button className="note-action-btn delete-note-btn" onClick={() => onDelete(note.id)} title="Eliminar">
+            <button type="button" className="icon-btn icon-btn-quiet danger" onClick={() => onDelete(note)} aria-label="Eliminar nota">
               <Icons.Trash />
             </button>
           </div>
-        </div>
-        <h3 className="note-title">{note.title || 'Sin Título'}</h3>
-        <span className="note-date">{note.date}</span>
-        <div className="note-content" style={{ whiteSpace: 'pre-line' }}>{note.content}</div>
-        {note.notes && (
-          <div className="note-details-box">
-            <strong>Notes:</strong> {note.notes}
-          </div>
-        )}
-      </div>
+        </header>
+        <h3 className="note-title">{note.title || 'Sin título'}</h3>
+        {note.content && <p className="note-body">{note.content}</p>}
+        {note.notes && <p className="note-extra">{note.notes}</p>}
+      </article>
     );
   }
 
   // ============================================================================
-  // TAB 6: SETTINGS
+  // VISTA 6: AJUSTES
   // ============================================================================
-  function TabSettings({ gasUrl, dbStatus, byMonth, onSaveGasUrl, onManualSync, onExportBackup, onImportBackup }) {
+  function TabSettings({ gasUrl, dbStatus, onSaveGasUrl, onManualSync, onExportBackup, onImportBackup, onImportError }) {
     const [urlInput, setUrlInput] = useState(gasUrl || '');
+    const [syncing, setSyncing] = useState(false);
     const fileInputRef = useRef(null);
+
+    // Mantener el campo al día si la URL cambia desde el modal de la nube
+    useEffect(() => { setUrlInput(gasUrl || ''); }, [gasUrl]);
 
     const handleFileImport = (e) => {
       const file = e.target.files[0];
+      e.target.value = ''; // permite volver a elegir el mismo archivo
       if (!file) return;
       const reader = new FileReader();
       reader.onload = (event) => {
         try {
-          const parsed = JSON.parse(event.target.result);
-          if (typeof parsed === 'object') {
-            onImportBackup(parsed);
-          } else {
-            alert('El archivo no tiene un formato válido.');
-          }
+          onImportBackup(JSON.parse(event.target.result));
         } catch (err) {
-          alert('Error leyendo el archivo JSON: ' + err.message);
+          onImportError('No se pudo leer el archivo: no es un JSON válido.');
         }
       };
       reader.readAsText(file);
     };
 
     return (
-      <div className="main-column" style={{ maxWidth: '100%' }}>
-        <header className="dashboard-header">
-          <h1 className="dashboard-title">Settings</h1>
-          <span className="dashboard-subtitle">Configuración y Respaldos</span>
-        </header>
-
-        <div className="settings-layout">
-          {/* Card: Google Apps Script Backend */}
-          <div className="settings-card">
-            <div className="settings-card-header">
-              <div className="settings-card-title">
-                <Icons.Cloud />
-                <span>Base de Datos Google Sheets (Apps Script)</span>
-              </div>
-              <span className={`settings-badge ${dbStatus}`}>
-                {dbStatus}
-              </span>
-            </div>
-
-            <p className="settings-description">
-              Sincroniza tu presupuesto en la nube directamente con una hoja de cálculo en Google Sheets utilizando una Google Apps Script Web App.
-            </p>
-
-            <div className="form-group" style={{ marginBottom: '1rem' }}>
-              <label>URL de Apps Script Web App</label>
-              <input
-                type="url"
-                className="form-input"
-                placeholder="https://script.google.com/macros/s/.../exec"
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-              />
-            </div>
-
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <button
-                className="btn btn-primary btn-sm"
-                onClick={() => {
-                  onSaveGasUrl(urlInput.trim());
-                  alert('URL guardada correctamente.');
-                }}
-              >
-                Guardar URL
-              </button>
-              <button className="btn btn-secondary btn-sm" onClick={onManualSync}>
-                Sincronizar Ahora
+      <div className="view settings">
+        <section className="panel" aria-labelledby="cloud-title">
+          <SectionHead title="Google Sheets" id="cloud-title">
+            <span className={`pill pill-${dbStatus}`}>{DB_STATUS_TEXT[dbStatus]}</span>
+          </SectionHead>
+          <p className="muted">
+            Guarda el presupuesto en una hoja de cálculo mediante una aplicación web de Apps Script. Sin URL, los datos quedan solo en este navegador.
+          </p>
+          <form className="field-row" onSubmit={(e) => { e.preventDefault(); onSaveGasUrl(urlInput); }}>
+            <label className="field">
+              <span className="field-label">URL de la aplicación web</span>
+              <input type="url" className="input" placeholder="https://script.google.com/macros/s/…/exec"
+                value={urlInput} onChange={(e) => setUrlInput(e.target.value)} />
+            </label>
+            <div className="button-row">
+              <button type="submit" className="btn btn-primary btn-sm">Guardar URL</button>
+              <button type="button" className="btn btn-secondary btn-sm" disabled={syncing}
+                onClick={async () => { setSyncing(true); await onManualSync(); setSyncing(false); }}>
+                <Icons.Refresh /> {syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
               </button>
             </div>
+          </form>
+        </section>
+
+        <section className="panel" aria-labelledby="backup-title">
+          <SectionHead title="Respaldos" id="backup-title" />
+          <p className="muted">
+            Descarga todos los meses en un archivo <code>.json</code> o restaura uno guardado antes. Restaurar reemplaza los datos actuales.
+          </p>
+          <div className="button-row">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={onExportBackup}>
+              <Icons.Download /> Descargar respaldo
+            </button>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => fileInputRef.current && fileInputRef.current.click()}>
+              <Icons.Upload /> Restaurar respaldo
+            </button>
+            <input type="file" ref={fileInputRef} hidden accept=".json,application/json" onChange={handleFileImport} />
           </div>
-
-          {/* Card: Respaldos Locales JSON */}
-          <div className="settings-card">
-            <div className="settings-card-header">
-              <div className="settings-card-title">
-                <Icons.List />
-                <span>Respaldos e Importación</span>
-              </div>
-            </div>
-
-            <p className="settings-description">
-              Exporta un respaldo completo de todos tus presupuestos mensuales en un archivo <code>.json</code> o restaura una copia de seguridad previamente guardada.
-            </p>
-
-            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-              <button className="btn btn-secondary btn-sm" onClick={onExportBackup}>
-                Descargar Respaldo JSON
-              </button>
-              <button
-                className="btn btn-secondary btn-sm"
-                onClick={() => fileInputRef.current && fileInputRef.current.click()}
-              >
-                Restaurar Respaldo JSON
-              </button>
-              <input
-                type="file"
-                ref={fileInputRef}
-                style={{ display: 'none' }}
-                accept=".json"
-                onChange={handleFileImport}
-              />
-            </div>
-          </div>
-        </div>
+        </section>
       </div>
     );
   }
@@ -1729,136 +1288,104 @@
   // ============================================================================
   // MODALES
   // ============================================================================
+  function Modal({ title, onClose, children }) {
+    useEffect(() => {
+      const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+      document.addEventListener('keydown', onKey);
+      document.body.classList.add('has-modal');
+      return () => {
+        document.removeEventListener('keydown', onKey);
+        document.body.classList.remove('has-modal');
+      };
+    }, [onClose]);
 
-  // Modal: Agregar Categoría
+    return (
+      <div className="modal-backdrop" onMouseDown={(e) => { if (e.target === e.currentTarget) onClose(); }}>
+        <div className="modal" role="dialog" aria-modal="true" aria-label={title}>
+          <header className="modal-head">
+            <h2>{title}</h2>
+            <button type="button" className="icon-btn icon-btn-quiet" onClick={onClose} aria-label="Cerrar">
+              <Icons.Close />
+            </button>
+          </header>
+          {children}
+        </div>
+      </div>
+    );
+  }
+
   function AddCategoryModal({ categories, onClose, onAddCategory }) {
     const [name, setName] = useState('');
-    const [budget, setBudget] = useState(0);
+    const [budget, setBudget] = useState('');
     const [parentId, setParentId] = useState('');
-
     const rootCategories = categories.filter(c => c.parentId === null);
 
     const handleSubmit = (e) => {
       e.preventDefault();
       if (!name.trim()) return;
-
-      const id = name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now();
       onAddCategory({
-        id,
+        id: name.toLowerCase().replace(/[^a-z0-9]/g, '-') + '-' + Date.now(),
         name: name.trim(),
-        budgeted: Number(budget) || 0,
+        budgeted: FM.parseCurrency(budget),
         parentId: parentId || null,
         canDelete: true
       });
     };
 
     return (
-      <div className="modal-overlay active" onClick={(e) => e.target.classList.contains('modal-overlay') && onClose()}>
-        <div className="modal-card">
-          <div className="modal-header">
-            <h3>Agregar Categoría</h3>
-            <button className="modal-close" onClick={onClose} aria-label="Cerrar modal">
-              <Icons.Close />
-            </button>
+      <Modal title="Nueva categoría" onClose={onClose}>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <label className="field">
+              <span className="field-label">Nombre</span>
+              <input type="text" className="input" placeholder="Comida, gimnasio…" required autoFocus value={name} onChange={(e) => setName(e.target.value)} />
+            </label>
+            <label className="field">
+              <span className="field-label">Monto inicial</span>
+              <input type="text" inputMode="decimal" className="input" placeholder="0.00" value={budget} onChange={(e) => setBudget(e.target.value)} />
+            </label>
+            <label className="field">
+              <span className="field-label">Dentro de</span>
+              <select className="input" value={parentId} onChange={(e) => setParentId(e.target.value)}>
+                <option value="">Ninguna (categoría principal)</option>
+                {rootCategories.map(p => <option key={p.id} value={p.id}>{p.name}</option>)}
+              </select>
+            </label>
           </div>
-          <form onSubmit={handleSubmit}>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Nombre de la Categoría</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ej. Comida, Gimnasio"
-                  required
-                  autoFocus
-                  value={name}
-                  onChange={(e) => setName(e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label>Presupuesto Inicial ($)</label>
-                <input
-                  type="number"
-                  className="form-input"
-                  min="0"
-                  step="any"
-                  value={budget}
-                  onChange={(e) => setBudget(e.target.value)}
-                />
-              </div>
-              <div className="form-group">
-                <label>Categoría Padre (Opcional)</label>
-                <select
-                  className="form-input"
-                  value={parentId}
-                  onChange={(e) => setParentId(e.target.value)}
-                >
-                  <option value="">Ninguna (Nivel Superior)</option>
-                  {rootCategories.map(p => (
-                    <option key={p.id} value={p.id}>{p.name}</option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-              <button type="submit" className="btn btn-primary">Guardar</button>
-            </div>
-          </form>
-        </div>
-      </div>
+          <footer className="modal-foot">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn-primary">Agregar categoría</button>
+          </footer>
+        </form>
+      </Modal>
     );
   }
 
-  // Modal: Configuración Cloud (GAS)
-  function DbConfigModal({ currentUrl, onClose, onSaveUrl }) {
+  function DbConfigModal({ currentUrl, dbStatus, onClose, onSaveUrl }) {
     const [url, setUrl] = useState(currentUrl || '');
 
-    const handleSubmit = (e) => {
-      e.preventDefault();
-      onSaveUrl(url.trim());
-    };
-
     return (
-      <div className="modal-overlay active" onClick={(e) => e.target.classList.contains('modal-overlay') && onClose()}>
-        <div className="modal-card">
-          <div className="modal-header">
-            <h3>Base de Datos Cloud</h3>
-            <button className="modal-close" onClick={onClose} aria-label="Cerrar modal">
-              <Icons.Close />
-            </button>
+      <Modal title="Conexión con Google Sheets" onClose={onClose}>
+        <form onSubmit={(e) => { e.preventDefault(); onSaveUrl(url); }}>
+          <div className="modal-body">
+            <p className="status-line">
+              <span className={`pill pill-${dbStatus}`}>{DB_STATUS_TEXT[dbStatus]}</span>
+            </p>
+            <label className="field">
+              <span className="field-label">URL de la aplicación web de Apps Script</span>
+              <input type="url" className="input" placeholder="https://script.google.com/macros/s/…/exec" value={url} onChange={(e) => setUrl(e.target.value)} />
+            </label>
+            <p className="muted small">Déjala vacía para guardar solo en este navegador.</p>
           </div>
-          <form onSubmit={handleSubmit}>
-            <div className="modal-body">
-              <p style={{ fontSize: '0.825rem', color: 'var(--color-text-muted)', marginBottom: '0.5rem', lineHeight: 1.4 }}>
-                Configura un backend en la nube con Google Apps Script para guardar tu presupuesto en Google Sheets.
-              </p>
-              <div className="form-group">
-                <label>URL de Google Apps Script Web App</label>
-                <input
-                  type="url"
-                  className="form-input"
-                  placeholder="https://script.google.com/macros/s/.../exec"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  style={{ fontSize: '0.8rem' }}
-                />
-              </div>
-              <div style={{ fontSize: '0.775rem', color: 'var(--color-text-light)' }}>
-                Deje este campo vacío para usar únicamente el almacenamiento local del navegador (localStorage).
-              </div>
-            </div>
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-              <button type="submit" className="btn btn-primary">Conectar y Guardar</button>
-            </div>
-          </form>
-        </div>
-      </div>
+          <footer className="modal-foot">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn-primary">Guardar conexión</button>
+          </footer>
+        </form>
+      </Modal>
     );
   }
 
-  // Modal: Agregar / Editar Nota
   function NoteModal({ initialNote, onClose, onSaveNote }) {
     const [title, setTitle] = useState(initialNote ? initialNote.title : '');
     const [tag, setTag] = useState(initialNote ? initialNote.tag : 'STRATEGY');
@@ -1870,11 +1397,11 @@
     const [content, setContent] = useState(initialNote ? initialNote.content : '');
     const [notesVal, setNotesVal] = useState(initialNote ? (initialNote.notes || '') : '');
     const [pinned, setPinned] = useState(initialNote ? !!initialNote.pinned : false);
+    const dateValid = /^\d{2}\/\d{2}\/\d{4}$/.test(date.trim());
 
     const handleSubmit = (e) => {
       e.preventDefault();
-      if (!title.trim() || !date.trim()) return;
-
+      if (!title.trim() || !dateValid) return;
       onSaveNote({
         id: initialNote ? initialNote.id : ('note-' + Date.now()),
         title: title.trim(),
@@ -1887,97 +1414,46 @@
     };
 
     return (
-      <div className="modal-overlay active" onClick={(e) => e.target.classList.contains('modal-overlay') && onClose()}>
-        <div className="modal-card">
-          <div className="modal-header">
-            <h3>{initialNote ? 'Editar Nota' : 'Agregar Nota'}</h3>
-            <button className="modal-close" onClick={onClose} aria-label="Cerrar modal">
-              <Icons.Close />
-            </button>
+      <Modal title={initialNote ? 'Editar nota' : 'Nueva nota'} onClose={onClose}>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <label className="field">
+              <span className="field-label">Título</span>
+              <input type="text" className="input" placeholder="Plan de ahorro para el viaje" required autoFocus value={title} onChange={(e) => setTitle(e.target.value)} />
+            </label>
+            <div className="field-pair">
+              <label className="field">
+                <span className="field-label">Tipo</span>
+                <select className="input" value={tag} onChange={(e) => setTag(e.target.value)}>
+                  {Object.keys(NOTE_TAGS).map(k => <option key={k} value={k}>{NOTE_TAGS[k]}</option>)}
+                </select>
+              </label>
+              <label className="field">
+                <span className="field-label">Fecha</span>
+                <input type="text" className={`input ${!dateValid ? 'is-invalid' : ''}`} placeholder="DD/MM/AAAA" required value={date}
+                  aria-invalid={!dateValid} onChange={(e) => setDate(e.target.value)} />
+                {!dateValid && <span className="field-error">Usa el formato DD/MM/AAAA.</span>}
+              </label>
+            </div>
+            <label className="field">
+              <span className="field-label">Contenido</span>
+              <textarea className="input" rows="4" required placeholder="Qué quieres recordar…" value={content} onChange={(e) => setContent(e.target.value)} />
+            </label>
+            <label className="field">
+              <span className="field-label">Detalle adicional (opcional)</span>
+              <input type="text" className="input" placeholder="Tasa actual 5.5 %, hablar con el banco…" value={notesVal} onChange={(e) => setNotesVal(e.target.value)} />
+            </label>
+            <label className="check">
+              <input type="checkbox" checked={pinned} onChange={(e) => setPinned(e.target.checked)} />
+              <span>Fijar arriba</span>
+            </label>
           </div>
-          <form onSubmit={handleSubmit}>
-            <div className="modal-body">
-              <div className="form-group">
-                <label>Título</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ej. Estrategia de Inversión"
-                  required
-                  autoFocus
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                />
-              </div>
-
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Tag / Tipo</label>
-                  <select className="form-input" value={tag} onChange={(e) => setTag(e.target.value)}>
-                    <option value="STRATEGY">STRATEGY</option>
-                    <option value="GOAL">GOAL</option>
-                    <option value="REMINDER">REMINDER</option>
-                    <option value="IDEA">IDEA</option>
-                  </select>
-                </div>
-                <div className="form-group" style={{ flex: 1 }}>
-                  <label>Fecha</label>
-                  <input
-                    type="text"
-                    className="form-input"
-                    placeholder="DD/MM/YYYY"
-                    required
-                    value={date}
-                    onChange={(e) => setDate(e.target.value)}
-                  />
-                </div>
-              </div>
-
-              <div className="form-group">
-                <label>Contenido</label>
-                <textarea
-                  className="form-input"
-                  placeholder="Escribe el contenido de la nota aquí..."
-                  rows="4"
-                  required
-                  value={content}
-                  onChange={(e) => setContent(e.target.value)}
-                  style={{ resize: 'vertical', fontFamily: 'inherit', fontSize: '0.9rem', padding: '0.5rem' }}
-                />
-              </div>
-
-              <div className="form-group">
-                <label>Detalles adicionales / Notas (Opcional)</label>
-                <input
-                  type="text"
-                  className="form-input"
-                  placeholder="Ej. Reunión con asesor, tasa actual 5.5%..."
-                  value={notesVal}
-                  onChange={(e) => setNotesVal(e.target.value)}
-                />
-              </div>
-
-              <div className="form-group" style={{ flexDirection: 'row', alignItems: 'center', gap: '0.5rem', marginTop: '0.25rem' }}>
-                <input
-                  type="checkbox"
-                  id="notePinnedCheck"
-                  checked={pinned}
-                  onChange={(e) => setPinned(e.target.checked)}
-                  style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-                />
-                <label htmlFor="notePinnedCheck" style={{ cursor: 'pointer', userSelect: 'none', fontSize: '0.8rem', fontWeight: 600, color: 'var(--color-text-muted)' }}>
-                  Fijar nota (Pinned)
-                </label>
-              </div>
-            </div>
-
-            <div className="modal-footer">
-              <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-              <button type="submit" className="btn btn-primary">Guardar</button>
-            </div>
-          </form>
-        </div>
-      </div>
+          <footer className="modal-foot">
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn-primary" disabled={!dateValid}>Guardar nota</button>
+          </footer>
+        </form>
+      </Modal>
     );
   }
 
@@ -1986,8 +1462,7 @@
   // ============================================================================
   const rootEl = document.getElementById('root');
   if (rootEl) {
-    const root = ReactDOM.createRoot(rootEl);
-    root.render(<FinancialBudgetDashboard />);
+    ReactDOM.createRoot(rootEl).render(<FinancialBudgetDashboard />);
   } else {
     console.error('No se encontró el elemento #root para montar la aplicación React.');
   }

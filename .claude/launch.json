@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "finanzas",
+      "runtimeExecutable": "npx.cmd",
+      "runtimeArgs": ["-y", "serve@14.2.4", "-l", "4317", "."],
+      "port": 4317
+    }
+  ]
+}

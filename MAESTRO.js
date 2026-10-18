@@ -96,19 +96,20 @@
       'tc-apap': { usdDone: false, dopDone: false }
     },
     notes: DEFAULT_NOTES,
-    lastSaved: Date.now()
+    // 0 = plantilla sin editar: cualquier versión guardada en la nube tiene prioridad
+    lastSaved: 0
   };
 
-  // Paleta de colores pastel refinada para categorías y gráficos
+  // Paleta de categorías (tonos sobrios, distinguibles entre sí). La primera raíz es Sueldo.
   const CATEGORY_COLORS = [
-    { parent: 'rgba(99, 179, 237, 0.22)', child: 'rgba(99, 179, 237, 0.08)', solid: '#38bdf8' },  // Blue
-    { parent: 'rgba(104, 211, 145, 0.22)', child: 'rgba(104, 211, 145, 0.08)', solid: '#34d399' }, // Green
-    { parent: 'rgba(246, 173, 85, 0.22)', child: 'rgba(246, 173, 85, 0.08)', solid: '#fbbf24' },  // Amber
-    { parent: 'rgba(183, 148, 244, 0.22)', child: 'rgba(183, 148, 244, 0.08)', solid: '#a78bfa' }, // Purple
-    { parent: 'rgba(252, 129, 129, 0.22)', child: 'rgba(252, 129, 129, 0.08)', solid: '#f87171' }, // Red
-    { parent: 'rgba(99, 218, 211, 0.22)', child: 'rgba(99, 218, 211, 0.08)', solid: '#2dd4bf' },  // Teal
-    { parent: 'rgba(246, 135, 179, 0.22)', child: 'rgba(246, 135, 179, 0.08)', solid: '#f472b6' }, // Pink
-    { parent: 'rgba(154, 205, 116, 0.22)', child: 'rgba(154, 205, 116, 0.08)', solid: '#a3e635' }  // Lime
+    { parent: 'rgba(15, 107, 82, 0.14)', child: 'rgba(15, 107, 82, 0.06)', solid: '#0f6b52' },   // Verde (sueldo)
+    { parent: 'rgba(46, 108, 158, 0.14)', child: 'rgba(46, 108, 158, 0.06)', solid: '#2e6c9e' },  // Azul
+    { parent: 'rgba(196, 133, 40, 0.14)', child: 'rgba(196, 133, 40, 0.06)', solid: '#c48528' },  // Ámbar
+    { parent: 'rgba(122, 92, 168, 0.14)', child: 'rgba(122, 92, 168, 0.06)', solid: '#7a5ca8' },  // Violeta
+    { parent: 'rgba(190, 86, 72, 0.14)', child: 'rgba(190, 86, 72, 0.06)', solid: '#be5648' },    // Teja
+    { parent: 'rgba(42, 143, 140, 0.14)', child: 'rgba(42, 143, 140, 0.06)', solid: '#2a8f8c' },  // Turquesa
+    { parent: 'rgba(176, 90, 130, 0.14)', child: 'rgba(176, 90, 130, 0.06)', solid: '#b05a82' },  // Ciruela
+    { parent: 'rgba(118, 140, 52, 0.14)', child: 'rgba(118, 140, 52, 0.06)', solid: '#768c34' }   // Oliva
   ];
 
   // --- 2. LOCALSTORAGE SEGURO ---
@@ -157,7 +158,8 @@
   }
 
   function formatMoney(val) {
-    return `$${formatCurrency(val)}`;
+    const num = Number(val) || 0;
+    return num < 0 ? `-$${formatCurrency(Math.abs(num))}` : `$${formatCurrency(num)}`;
   }
 
   function parseCurrency(str) {
@@ -269,6 +271,9 @@
         name: cat.name,
         amount: Number(cat.budgeted) || 0
       })).filter(s => s.amount > 0);
+      // La escala cubre también los meses en que los gastos superan al ingreso
+      const expenses = segments.reduce((sum, s) => sum + s.amount, 0);
+      if (expenses > maxIncome) maxIncome = expenses;
 
       const d = new Date(parseInt(currentYear, 10), idx, 1);
       const label = d.toLocaleString('es-ES', { month: 'short' }).toUpperCase();
@@ -277,6 +282,7 @@
         monthKey: m,
         label,
         income,
+        expenses,
         segments,
         isFuture: m > getCurrentYYYYMM()
       };
@@ -304,6 +310,21 @@
     if (index === -1) return null;
     const palette = CATEGORY_COLORS[index % CATEGORY_COLORS.length];
     return isChild ? palette.child : palette.parent;
+  }
+
+  // Color sólido de la categoría raíz (puntos, barras y leyendas)
+  function getCategoryAccent(cat, allCategories) {
+    if (!cat) return null;
+    const all = allCategories || [];
+    let current = cat;
+    while (current && current.parentId !== null) {
+      const p = all.find(c => c.id === current.parentId);
+      if (!p) break;
+      current = p;
+    }
+    const index = all.filter(c => c.parentId === null).findIndex(c => c.id === current.id);
+    if (index === -1) return null;
+    return CATEGORY_COLORS[index % CATEGORY_COLORS.length].solid;
   }
 
   // --- 5. GESTOR DE DATOS MENSUALES Y MIGRACIÓN ---
@@ -343,6 +364,70 @@
     return copy;
   }
 
+  // Copia un mes como base de otro: reinicia los estados PENDIENTE y marca la copia
+  // como no editada (lastSaved 0) para que una versión real en la nube tenga prioridad.
+  function cloneMonthAsTemplate(monthData) {
+    const cloned = JSON.parse(JSON.stringify(monthData));
+    cloned.extra = ensureAppExtraDefaults(cloned.extra);
+    Object.keys(cloned.extra.tarjetas).forEach(k => {
+      cloned.extra.tarjetas[k].usdDone = false;
+      cloned.extra.tarjetas[k].dopDone = false;
+    });
+    Object.keys(cloned.extra.distribucion).forEach(k => {
+      cloned.extra.distribucion[k].pendingDone = false;
+    });
+    cloned.extra.lastSaved = 0;
+    return cloned;
+  }
+
+  function createMonthFrom(byMonth, targetMonth) {
+    const prevMonths = Object.keys(byMonth || {}).sort().filter(m => m < targetMonth);
+    if (prevMonths.length > 0) {
+      return cloneMonthAsTemplate(byMonth[prevMonths[prevMonths.length - 1]]);
+    }
+    return {
+      categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
+      extra: JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA))
+    };
+  }
+
+  // Valida la forma { "YYYY-MM": { categories: [...] } } (nube y respaldos importados)
+  function isValidByMonth(obj) {
+    if (!obj || typeof obj !== 'object' || Array.isArray(obj)) return false;
+    return Object.keys(obj).every(k => /^\d{4}-\d{2}$/.test(k) && obj[k] && Array.isArray(obj[k].categories));
+  }
+
+  // Une los meses de la nube con los locales: por mes gana la versión con lastSaved más reciente
+  // (la nube gana en empate). Devuelve null si la respuesta no trae meses válidos.
+  function mergeCloudByMonth(localByMonth, cloudData, currentMonth) {
+    let loaded = cloudData && cloudData.byMonth;
+
+    // Retrocompatibilidad con el script antiguo (todo en la celda A1)
+    if (!loaded && cloudData && (Array.isArray(cloudData) || cloudData.categories || cloudData.extra)) {
+      const oldCats = Array.isArray(cloudData) ? cloudData : cloudData.categories;
+      if (oldCats && oldCats.length > 0) {
+        loaded = {
+          [currentMonth]: {
+            categories: oldCats,
+            extra: ensureAppExtraDefaults(cloudData.extra || DEFAULT_APP_EXTRA)
+          }
+        };
+      }
+    }
+
+    if (!isValidByMonth(loaded) || Object.keys(loaded).length === 0) return null;
+
+    const merged = { ...localByMonth };
+    Object.keys(loaded).forEach(m => {
+      const cloudMonth = loaded[m];
+      const localMonth = merged[m];
+      const localTs = (localMonth && localMonth.extra && localMonth.extra.lastSaved) || 0;
+      const cloudTs = (cloudMonth.extra && cloudMonth.extra.lastSaved) || 0;
+      if (!localMonth || cloudTs >= localTs) merged[m] = cloudMonth;
+    });
+    return merged;
+  }
+
   function loadInitialByMonthState() {
     const raw = safeStorage.get(STORAGE_KEY_BY_MONTH);
     let byMonth = null;
@@ -377,33 +462,9 @@
       safeStorage.set(STORAGE_KEY_BY_MONTH, JSON.stringify(byMonth));
     }
 
-    // Asegurar que el mes actual existe
+    // Asegurar que el mes actual existe (copia del mes anterior más cercano)
     if (!byMonth[currentMonth]) {
-      // Clonar del mes más reciente
-      const existingMonths = Object.keys(byMonth).sort();
-      const prevMonths = existingMonths.filter(m => m < currentMonth);
-      if (prevMonths.length > 0) {
-        const nearest = prevMonths[prevMonths.length - 1];
-        const cloned = JSON.parse(JSON.stringify(byMonth[nearest]));
-        // Restablecer estados de verificación (PENDIENTE)
-        if (cloned.extra && cloned.extra.tarjetas) {
-          Object.keys(cloned.extra.tarjetas).forEach(k => {
-            cloned.extra.tarjetas[k].usdDone = false;
-            cloned.extra.tarjetas[k].dopDone = false;
-          });
-        }
-        if (cloned.extra && cloned.extra.distribucion) {
-          Object.keys(cloned.extra.distribucion).forEach(k => {
-            cloned.extra.distribucion[k].pendingDone = false;
-          });
-        }
-        byMonth[currentMonth] = cloned;
-      } else {
-        byMonth[currentMonth] = {
-          categories: JSON.parse(JSON.stringify(DEFAULT_CATEGORIES)),
-          extra: JSON.parse(JSON.stringify(DEFAULT_APP_EXTRA))
-        };
-      }
+      byMonth[currentMonth] = createMonthFrom(byMonth, currentMonth);
       safeStorage.set(STORAGE_KEY_BY_MONTH, JSON.stringify(byMonth));
     }
 
@@ -412,8 +473,10 @@
 
   // --- 6. INTEGRACIÓN CON GOOGLE APPS SCRIPT / GOOGLE SHEETS ---
 
+  // null = nunca configurada (usa la URL por defecto); '' = el usuario eligió solo almacenamiento local
   function getGasUrl() {
-    return safeStorage.get(STORAGE_KEY_GAS_URL) || DEFAULT_GAS_URL;
+    const stored = safeStorage.get(STORAGE_KEY_GAS_URL);
+    return stored === null ? DEFAULT_GAS_URL : stored;
   }
 
   function setGasUrl(url) {
@@ -490,7 +553,12 @@
     computeSummaryTotal,
     computeAnnualDistribucionData,
     getCategoryColor,
+    getCategoryAccent,
     ensureAppExtraDefaults,
+    cloneMonthAsTemplate,
+    createMonthFrom,
+    isValidByMonth,
+    mergeCloudByMonth,
     loadInitialByMonthState,
     getGasUrl,
     setGasUrl,
