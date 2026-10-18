@@ -403,6 +403,7 @@
                 onToggleCollapse={toggleCollapse}
                 onUpdateCategories={(newCats) => updateCurrentMonthData(newCats, undefined)}
                 onOpenAddCategory={() => setModalState({ type: 'addCategory' })}
+                onOpenTarjetas={() => goToTab('tarjetas')}
               />
             )}
 
@@ -635,7 +636,8 @@
     collapsedCategories,
     onToggleCollapse,
     onUpdateCategories,
-    onOpenAddCategory
+    onOpenAddCategory,
+    onOpenTarjetas
   }) {
     const handleCategoryChange = (id, field, value) => {
       onUpdateCategories(categories.map(cat => cat.id === id
@@ -718,6 +720,8 @@
           </div>
         </section>
 
+        <GastosMeter currentMonth={currentMonth} categories={categories} onOpenTarjetas={onOpenTarjetas} />
+
         <section className="panel" aria-labelledby="budget-title">
           <SectionHead title="Categorías" id="budget-title">
             <button type="button" className="btn btn-primary btn-sm" onClick={onOpenAddCategory}>
@@ -759,6 +763,124 @@
   }
 
   // Fila recursiva de categoría
+  // --- Gastos M vs. lo gastado con las tarjetas en el mes (historial de Gmail) ---
+  const METER_COLORS = ['#2f6f9f', '#c9892b', '#7a5aa6', '#b5523b', '#3f8f6b', '#6b7a86', '#a0527a'];
+
+  function GastosMeter({ currentMonth, categories, onOpenTarjetas }) {
+    const gastosM = categories.find(c => c.id === 'gastos-m')
+      || categories.find(c => c.parentId === null && /gastos\s*m\b/i.test(c.name || ''));
+    const limit = gastosM ? Number(gastosM.budgeted) || 0 : 0;
+
+    // Mismo criterio que "Gastado" en Tarjetas (Mes, Todas): salidas no declinadas del mes
+    const data = useMemo(() => {
+      const store = FB.loadStore();
+      const cards = FB.getCards(store);
+      const byCard = {};
+      const totals = { DOP: 0, USD: 0, EUR: 0 };
+      FB.getMovements(store).forEach(tx => {
+        if (!(tx.date || '').startsWith(currentMonth) || tx.status === 'declinada' || !tx.isOutflow) return;
+        totals[tx.currency] = (totals[tx.currency] || 0) + tx.amount;
+        if (tx.currency === 'DOP') byCard[tx.cardId] = (byCard[tx.cardId] || 0) + tx.amount;
+      });
+      const segments = Object.keys(byCard)
+        .map(id => {
+          const card = cards.find(c => c.id === id);
+          return { id, amount: byCard[id], name: card ? `${card.name}${card.last4 ? ` ··${card.last4}` : ''}` : id };
+        })
+        .filter(s => s.amount > 0)
+        .sort((a, b) => b.amount - a.amount)
+        .map((s, i) => ({ ...s, color: METER_COLORS[i % METER_COLORS.length] }));
+      return { totals, segments, hasHistory: cards.length > 0 };
+    }, [currentMonth]);
+
+    if (!gastosM) return null;
+
+    const spent = data.totals.DOP;
+    const left = limit - spent;
+    const over = left < 0;
+    const pct = limit > 0 ? (spent / limit) * 100 : 0;
+    const scale = Math.max(limit, spent, 1);
+    const tone = over ? 'is-over' : pct >= 85 ? 'is-near' : '';
+
+    // Ritmo: en el mes actual, cuánto tocaría llevar gastado hoy si se gasta parejo
+    const now = new Date();
+    const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+    const [y, m] = currentMonth.split('-').map(Number);
+    const daysInMonth = new Date(y, m, 0).getDate();
+    const pace = currentMonth === todayKey && limit > 0 ? (limit * now.getDate()) / daysInMonth : null;
+    const foreign = ['USD', 'EUR'].filter(c => data.totals[c] > 0);
+
+    return (
+      <section className={`panel meter ${tone}`} aria-labelledby="meter-title">
+        <SectionHead title={`${gastosM.name} · tarjetas`} id="meter-title">
+          <button type="button" className="btn btn-ghost btn-sm" onClick={onOpenTarjetas}>Ver tarjetas</button>
+        </SectionHead>
+
+        <dl className="meter-figures">
+          <div>
+            <dt>Gastado este mes</dt>
+            <dd><Money value={spent} /></dd>
+          </div>
+          <div>
+            <dt>Límite</dt>
+            <dd><Money value={limit} /></dd>
+          </div>
+          <div className="meter-main">
+            <dt>{over ? 'Excedido' : 'Te queda'}</dt>
+            <dd><Money value={over ? -left : left} tone={over ? 'neg' : 'pos'} /></dd>
+          </div>
+        </dl>
+
+        <div className="meter-track-wrap">
+          <div className="meter-track" role="img"
+            aria-label={`${FM.formatMoney(spent)} gastado de ${FM.formatMoney(limit)} (${Math.round(pct)}%)`}>
+            {data.segments.map(s => (
+              <span key={s.id} className="meter-seg"
+                style={{ width: `${(s.amount / scale) * 100}%`, background: s.color }}
+                title={`${s.name}: ${FM.formatMoney(s.amount)}`} />
+            ))}
+            {over && <span className="meter-limit" style={{ left: `${(limit / scale) * 100}%` }} title="Límite" />}
+            {pace !== null && !over && (
+              <span className="meter-pace" style={{ left: `${(pace / scale) * 100}%` }}
+                title={`Ritmo parejo al día ${now.getDate()}: ${FM.formatMoney(pace)}`} />
+            )}
+          </div>
+          <div className="meter-scale">
+            <span className="meter-pct">{limit > 0 ? `${Math.round(pct)}% usado` : 'Sin límite asignado'}</span>
+            {pace !== null && (
+              <span className="muted">
+                {spent <= pace ? 'Vas por debajo del ritmo' : 'Vas por encima del ritmo'} (día {now.getDate()} de {daysInMonth})
+              </span>
+            )}
+          </div>
+        </div>
+
+        {data.segments.length > 0 ? (
+          <ul className="legend">
+            {data.segments.map(s => (
+              <li key={s.id}>
+                <span className="legend-dot" style={{ background: s.color }} />
+                <span className="legend-name">{s.name}</span>
+                <span className="legend-pct">{FM.formatMoney(s.amount)}</span>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="hint">
+            {data.hasHistory
+              ? `No hay consumos en pesos registrados en ${FM.formatMonthLabel(currentMonth).toLowerCase()}.`
+              : 'Conecta Gmail en Tarjetas para ver cuánto llevas gastado.'}
+          </p>
+        )}
+        {foreign.length > 0 && (
+          <p className="hint">
+            Además: {foreign.map(c => fmtCurrency(data.totals[c], c)).join(' · ')} (no se suma al límite: no se convierte moneda).
+          </p>
+        )}
+      </section>
+    );
+  }
+
   function CategoryTreeRow({ category, depth, allCategories, collapsedCategories, onToggleCollapse, onChange, onDelete }) {
     const children = allCategories.filter(c => c.parentId === category.id);
     const isParent = children.length > 0;

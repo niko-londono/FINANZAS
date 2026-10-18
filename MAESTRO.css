@@ -395,6 +395,34 @@ textarea.input { resize: vertical; min-height: 96px; line-height: 1.5; }
 .legend-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--ink-2); }
 .legend-pct { font-variant-numeric: tabular-nums; font-weight: 600; }
 
+/* --- Presupuesto: Gastos M vs. tarjetas --- */
+.meter { display: flex; flex-direction: column; gap: 16px; }
+.meter .section-head { margin-bottom: 0; }
+.meter-figures { display: grid; grid-template-columns: 1fr 1fr; gap: 12px 16px; margin: 0; }
+.meter-figures dt { font-size: 13px; color: var(--ink-3); font-weight: 500; }
+.meter-figures dd { margin: 2px 0 0; font-size: 18px; letter-spacing: -0.01em; }
+.meter-main { grid-column: 1 / -1; order: -1; }
+.meter-figures .meter-main dd { font-size: 28px; letter-spacing: -0.02em; line-height: 1.1; }
+.meter-main dd .money { font-weight: 650; }
+.meter-track-wrap { display: flex; flex-direction: column; gap: 8px; }
+.meter-track {
+  position: relative; display: flex; gap: 2px;
+  height: 14px; border-radius: 7px; overflow: hidden;
+  background: var(--surface-2);
+}
+.meter-seg { height: 100%; min-width: 3px; transition: width 0.4s var(--ease-out); }
+.meter-pace, .meter-limit { position: absolute; top: 0; bottom: 0; width: 2px; margin-left: -1px; background: var(--ink); opacity: 0.55; }
+.meter-limit { background: var(--neg); opacity: 1; }
+.meter-scale { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; font-size: 13px; }
+.meter-pct { font-weight: 600; font-variant-numeric: tabular-nums; }
+.meter.is-near .meter-pct { color: var(--warn); }
+.meter.is-over .meter-pct { color: var(--neg); }
+.meter .legend { grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); }
+@media (min-width: 640px) {
+  .meter-figures { grid-template-columns: 1.4fr 1fr 1fr; align-items: end; }
+  .meter-main { grid-column: auto; order: 0; padding-right: 16px; border-right: 1px solid var(--line); }
+}
+
 /* --- Presupuesto: libro de categorías --- */
 .panel:has(.ledger) { padding-bottom: 6px; }
 .ledger { margin: 0 calc(var(--pad) * -1); }
