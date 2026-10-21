@@ -947,6 +947,17 @@ textarea.input { resize: vertical; min-height: 96px; line-height: 1.5; }
 .cat-select:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-ring); }
 .cat-fixed { grid-area: cat; justify-self: end; font-size: 12px; color: var(--ink-3); padding: 0 2px; }
 
+/* Movimientos manuales: el nombre abre el formulario para editar o eliminar */
+.tx-edit {
+  display: inline-flex; align-items: center; gap: 6px; max-width: 100%;
+  padding: 0; border: 0; background: transparent; text-align: left; color: inherit;
+}
+.tx-edit svg { flex: none; color: var(--ink-3); opacity: 0.7; transition: opacity 0.15s ease, color 0.15s ease; }
+.tx-edit:hover svg { opacity: 1; color: var(--accent); }
+.tag-manual { background: var(--accent-soft); color: var(--accent); font-size: 11px; padding: 1px 6px; }
+.modal-foot .modal-foot-start { color: var(--neg); }
+.hide-sm { display: none; }
+
 .mov-foot { display: flex; align-items: center; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; padding-top: 12px; border-top: 1px solid var(--line); }
 
 @media (min-width: 640px) {
@@ -954,6 +965,8 @@ textarea.input { resize: vertical; min-height: 96px; line-height: 1.5; }
   .cat-select { justify-self: start; }
   .cat-fixed { justify-self: start; padding-left: 8px; }
   .cat-bars { display: grid; grid-template-columns: 1fr 1fr; column-gap: 16px; }
+  .hide-sm { display: inline; }
+  .modal-foot .modal-foot-start { margin-right: auto; }
 }
 
 /* ==============================================================================

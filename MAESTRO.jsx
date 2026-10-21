@@ -1416,6 +1416,119 @@
     return d.toISOString().slice(0, 10);
   }
 
+  // Movimientos manuales: tipos del formulario (transferencia primero: es lo que más falta en los correos)
+  const MANUAL_TYPES = [
+    { id: 'transferencia', label: 'Transferencia enviada' },
+    { id: 'consumo', label: 'Pago o compra' },
+    { id: 'retiro', label: 'Retiro / efectivo' },
+    { id: 'ingreso', label: 'Dinero recibido' },
+    { id: 'pago', label: 'Pago a la tarjeta' }
+  ];
+  const MANUAL_CATEGORIES = FB.CATEGORIES.filter(c => c.id !== 'pagos' && c.id !== 'ingresos');
+
+  function ManualTxModal({ initial, cards, currentMonth, defaultCardId, onClose, onSave, onDelete }) {
+    const [type, setType] = useState(initial ? initial.type : 'transferencia');
+    const [merchant, setMerchant] = useState(initial ? initial.merchant : '');
+    const [amount, setAmount] = useState(initial ? String(initial.amount) : '');
+    const [currency, setCurrency] = useState(initial ? initial.currency : 'DOP');
+    const [date, setDate] = useState(() => {
+      if (initial) return initial.date;
+      const today = new Date();
+      const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`;
+      return iso.startsWith(currentMonth) ? iso : `${currentMonth}-01`;
+    });
+    const [cardId, setCardId] = useState(() => {
+      const id = initial ? initial.cardId : defaultCardId;
+      return id === FB.MANUAL_CARD.id ? '' : (id || '');
+    });
+    const [category, setCategory] = useState(initial ? (initial.categoryOverride || '') : '');
+    const isOutflow = ['consumo', 'retiro', 'transferencia'].includes(type);
+    const amountValue = FM.parseCurrency(amount);
+    const valid = amountValue > 0 && /^\d{4}-\d{2}-\d{2}$/.test(date);
+    const realCards = cards.filter(c => c.id !== FB.MANUAL_CARD.id);
+
+    const handleSubmit = (e) => {
+      e.preventDefault();
+      if (!valid) return;
+      onSave({
+        id: initial ? initial.id : undefined,
+        type,
+        merchant,
+        amount: amountValue,
+        currency,
+        date,
+        cardId: cardId || FB.MANUAL_CARD.id,
+        categoryOverride: isOutflow ? category : ''
+      });
+    };
+
+    return (
+      <Modal title={initial ? 'Editar movimiento' : 'Nuevo movimiento'} onClose={onClose}>
+        <form onSubmit={handleSubmit}>
+          <div className="modal-body">
+            <label className="field">
+              <span className="field-label">Tipo</span>
+              <select className="input" value={type} onChange={(e) => setType(e.target.value)}>
+                {MANUAL_TYPES.map(t => <option key={t.id} value={t.id}>{t.label}</option>)}
+              </select>
+            </label>
+            <label className="field">
+              <span className="field-label">Descripción</span>
+              <input type="text" className="input" placeholder={type === 'ingreso' ? 'Quién te pagó' : 'A quién o por qué: alquiler, Juan, luz…'} autoFocus={!initial}
+                value={merchant} onChange={(e) => setMerchant(e.target.value)} />
+            </label>
+            <div className="field-pair">
+              <label className="field">
+                <span className="field-label">Monto</span>
+                <input type="text" inputMode="decimal" className="input" placeholder="0.00" required value={amount} onChange={(e) => setAmount(e.target.value)} />
+              </label>
+              <label className="field">
+                <span className="field-label">Moneda</span>
+                <select className="input" value={currency} onChange={(e) => setCurrency(e.target.value)}>
+                  <option value="DOP">Pesos (DOP)</option>
+                  <option value="USD">Dólares (USD)</option>
+                  <option value="EUR">Euros (EUR)</option>
+                </select>
+              </label>
+            </div>
+            <div className="field-pair">
+              <label className="field">
+                <span className="field-label">Fecha</span>
+                <input type="date" className="input" required value={date} onChange={(e) => setDate(e.target.value)} />
+              </label>
+              <label className="field">
+                <span className="field-label">Desde</span>
+                <select className="input" value={cardId} onChange={(e) => setCardId(e.target.value)}>
+                  <option value="">{FB.MANUAL_CARD.name}</option>
+                  {realCards.map(c => <option key={c.id} value={c.id}>{c.name}{c.last4 ? ` ··${c.last4}` : ''}</option>)}
+                </select>
+              </label>
+            </div>
+            {isOutflow && (
+              <label className="field">
+                <span className="field-label">Categoría</span>
+                <select className="input" value={category} onChange={(e) => setCategory(e.target.value)}>
+                  <option value="">Automática</option>
+                  {MANUAL_CATEGORIES.map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                </select>
+              </label>
+            )}
+            {isOutflow && <p className="muted small">Cuenta como gasto del mes en Tarjetas y en el gráfico de Gastos M.</p>}
+          </div>
+          <footer className="modal-foot">
+            {initial && (
+              <button type="button" className="btn btn-ghost danger modal-foot-start" onClick={() => onDelete(initial)}>
+                <Icons.Trash /> Eliminar
+              </button>
+            )}
+            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
+            <button type="submit" className="btn btn-primary" disabled={!valid}>{initial ? 'Guardar' : 'Agregar movimiento'}</button>
+          </footer>
+        </form>
+      </Modal>
+    );
+  }
+
   function CardMovements({ currentMonth, gasUrl, notify, store, setStore, movements, cardFilter, setCardFilter, detailOpen, setDetailOpen }) {
     const [progress, setProgress] = useState(null); // { done, total } mientras lee Gmail
     const [connected, setConnected] = useState(() => FB.hasSession());
@@ -1423,6 +1536,7 @@
     const [categoryFilter, setCategoryFilter] = useState(null);
     const [sinceMonths, setSinceMonths] = useState('6');
     const [visible, setVisible] = useState(LIST_PAGE);
+    const [manualEdit, setManualEdit] = useState(null); // null | 'new' | movimiento manual a editar
     const cloudTimerRef = useRef(null);
 
     const cards = useMemo(() => FB.getCards(store), [store]);
@@ -1504,11 +1618,40 @@
       }
     };
 
-    const changeCategory = (tx, categoryId) => {
-      const next = { ...store, rules: { ...store.rules, [FB.merchantKey(tx.merchantDetail || tx.merchant)]: categoryId } };
+    const commitStore = (next) => {
       FB.saveStore(next);
       setStore(next);
       scheduleCloudSave(next);
+    };
+
+    // En los manuales la categoría es de ese movimiento; en los de Gmail se recuerda por comercio
+    const changeCategory = (tx, categoryId) => {
+      if (tx.source === 'manual') {
+        commitStore(FB.saveManual(store, { ...store.tx[tx.id], categoryOverride: categoryId }));
+        return;
+      }
+      commitStore({ ...store, rules: { ...store.rules, [FB.merchantKey(tx.merchantDetail || tx.merchant)]: categoryId } });
+    };
+
+    const saveManualTx = (data) => {
+      commitStore(FB.saveManual(store, data));
+      setManualEdit(null);
+      if (!data.id && data.date && !data.date.startsWith(currentMonth)) {
+        notify(`Movimiento guardado en ${FM.formatMonthLabel(data.date.slice(0, 7)).toLowerCase()}.`, 'ok');
+      } else {
+        notify(data.id ? 'Movimiento actualizado.' : 'Movimiento agregado.', 'ok');
+      }
+      if (gasUrl && !FB.hasSession()) {
+        // Sin sesión de Google no se puede escribir en la hoja Movimientos; sube al conectar Gmail
+        setTimeout(() => notify('Queda en este navegador; se sube a la hoja la próxima vez que conectes Gmail.'), 50);
+      }
+    };
+
+    const removeManualTx = (tx) => {
+      if (!window.confirm(`¿Eliminar "${tx.merchant || FB.TYPE_LABELS[tx.type]}"?`)) return;
+      commitStore(FB.deleteManual(store, tx.id));
+      setManualEdit(null);
+      notify('Movimiento eliminado.');
     };
 
     const disconnect = () => {
@@ -1518,7 +1661,7 @@
     };
 
     const clearLocal = () => {
-      if (!window.confirm('¿Borrar el historial de movimientos de este navegador? Se puede volver a leer desde Gmail (y la copia en Google Sheets no se toca).')) return;
+      if (!window.confirm('¿Borrar el historial de movimientos de este navegador? Se puede volver a leer desde Gmail (y la copia en Google Sheets no se toca). Los movimientos manuales que no se hayan subido a la hoja se pierden.')) return;
       setStore(FB.clearStore());
       setCardFilter('all');
       setCategoryFilter(null);
@@ -1545,11 +1688,16 @@
     return (
       <section className="panel movements" aria-labelledby="mov-title">
         <SectionHead title="Movimientos" id="mov-title">
-          {hasData && (
-            <button type="button" className="btn btn-primary btn-sm" onClick={connectAndSync} disabled={syncing}>
-              <Icons.Refresh /> {syncing ? 'Leyendo…' : 'Actualizar desde Gmail'}
+          <div className="section-actions">
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => setManualEdit('new')}>
+              <Icons.Plus /> Agregar
             </button>
-          )}
+            {hasData && (
+              <button type="button" className="btn btn-primary btn-sm" onClick={connectAndSync} disabled={syncing}>
+                <Icons.Refresh /> {syncing ? 'Leyendo…' : <>Actualizar<span className="hide-sm"> desde Gmail</span></>}
+              </button>
+            )}
+          </div>
         </SectionHead>
 
         {syncing && (
@@ -1577,7 +1725,7 @@
               </label>
               <button type="button" className="btn btn-primary" onClick={connectAndSync}>Conectar Gmail</button>
             </div>
-            <p className="muted small">Google pedirá permiso de solo lectura. El acceso dura una hora y no se guarda en el navegador.</p>
+            <p className="muted small">Google pedirá permiso de solo lectura. El acceso dura una hora y no se guarda en el navegador. Lo que no llega por correo (transferencias, efectivo) se agrega con <strong>Agregar</strong>.</p>
           </div>
         )}
 
@@ -1599,7 +1747,7 @@
               {cards.map(card => (
                 <button key={card.id} type="button" className={`card-chip ${cardFilter === card.id ? 'is-active' : ''}`} aria-pressed={cardFilter === card.id} onClick={() => setCardFilter(card.id)}>
                   <span className="card-chip-name">{card.name}{card.last4 ? <span className="muted"> ··{card.last4}</span> : null}</span>
-                  <span className="card-chip-kind">{CARD_KIND_LABEL[card.kind] || ''} · {card.bank === 'apap' ? 'APAP' : 'Popular'}</span>
+                  <span className="card-chip-kind">{card.bank === 'manual' ? 'Manual' : `${CARD_KIND_LABEL[card.kind] || ''} · ${card.bank === 'apap' ? 'APAP' : 'Popular'}`}</span>
                   <MultiCurrency amounts={cardTotals[card.id] || {}} />
                 </button>
               ))}
@@ -1672,23 +1820,32 @@
                       {day.items.map(tx => {
                         const card = store.cards[tx.cardId];
                         const declined = tx.status === 'declinada';
+                        const manual = tx.source === 'manual';
+                        const title = tx.merchantDetail || tx.merchant || FB.TYPE_LABELS[tx.type];
                         return (
                           <li key={tx.id} className={`tx ${declined ? 'is-declined' : ''}`}>
                             <div className="tx-main">
-                              <span className="tx-merchant">{tx.merchantDetail || tx.merchant || FB.TYPE_LABELS[tx.type]}</span>
+                              {manual ? (
+                                <button type="button" className="tx-merchant tx-edit" onClick={() => setManualEdit(store.tx[tx.id])} aria-label={`Editar ${title}`}>
+                                  {title}<Icons.Edit />
+                                </button>
+                              ) : (
+                                <span className="tx-merchant">{title}</span>
+                              )}
                               <span className="tx-meta">
                                 {cardFilter === 'all' && card ? `${card.name}${card.last4 ? ` ··${card.last4}` : ''}` : ''}
                                 {tx.type !== 'consumo' ? `${cardFilter === 'all' && card ? ' · ' : ''}${FB.TYPE_LABELS[tx.type]}` : ''}
+                                {manual ? <span className="tag tag-manual">Manual</span> : null}
                                 {declined ? <span className="tag tag-declined">Declinada</span> : null}
                               </span>
                             </div>
                             <span className={`money tx-amount ${tx.isOutflow ? '' : 'pos'}`}>
                               {tx.isOutflow ? '' : '+'}{fmtCurrency(tx.amount, tx.currency)}
                             </span>
-                            {tx.type === 'consumo' ? (
-                              <select className="cat-select" value={tx.category} aria-label={`Categoría de ${tx.merchantDetail || tx.merchant}`}
+                            {tx.type === 'consumo' || (manual && tx.isOutflow) ? (
+                              <select className="cat-select" value={tx.category} aria-label={`Categoría de ${title}`}
                                 onChange={(e) => changeCategory(tx, e.target.value)}>
-                                {FB.CATEGORIES.filter(c => c.match || c.id === 'otros').map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
+                                {(manual ? MANUAL_CATEGORIES : FB.CATEGORIES.filter(c => c.match || c.id === 'otros')).map(c => <option key={c.id} value={c.id}>{c.label}</option>)}
                               </select>
                             ) : (
                               <span className="cat-fixed">{(FB.CATEGORY_BY_ID[tx.category] || {}).label}</span>
@@ -1721,6 +1878,18 @@
               </div>
             </footer>
           </>
+        )}
+
+        {manualEdit && (
+          <ManualTxModal
+            initial={manualEdit === 'new' ? null : manualEdit}
+            cards={cards}
+            currentMonth={currentMonth}
+            defaultCardId={cardFilter !== 'all' ? cardFilter : ''}
+            onClose={() => setManualEdit(null)}
+            onSave={saveManualTx}
+            onDelete={removeManualTx}
+          />
         )}
       </section>
     );

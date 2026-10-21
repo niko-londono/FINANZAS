@@ -295,6 +295,15 @@
     return emptyStore();
   }
 
+  // Movimientos: si los dos tienen el mismo, gana el editado más tarde (manuales editados o borrados)
+  function mergeTx(older, newer) {
+    const out = { ...older, ...newer };
+    Object.keys(older).forEach(id => {
+      if (newer[id] && (older[id].editedAt || 0) > (newer[id].editedAt || 0)) out[id] = older[id];
+    });
+    return out;
+  }
+
   // Une dos almacenes (nube + local). En reglas y nombres de tarjeta gana el más reciente.
   function mergeStores(a, b) {
     const base = { ...emptyStore(), ...a };
@@ -303,7 +312,7 @@
     const older = newer === other ? base : other;
     return {
       ...emptyStore(),
-      tx: { ...older.tx, ...newer.tx },
+      tx: mergeTx(older.tx, newer.tx),
       paypal: { ...older.paypal, ...newer.paypal },
       seen: { ...older.seen, ...newer.seen },
       rules: { ...older.rules, ...newer.rules },
@@ -345,6 +354,38 @@
     return tx;
   }
 
+  // --- 5b. MOVIMIENTOS MANUALES ---
+  // Lo que no llega por correo (transferencias desde la app del banco, efectivo…). Viven en el
+  // mismo almacén con source 'manual'; borrar deja una marca (deleted) para que la nube no lo reviva.
+  const MANUAL_CARD = { id: 'manual', bank: 'manual', name: 'Otra cuenta / efectivo', kind: 'cuenta' };
+
+  function saveManual(store, data) {
+    const id = data.id || `manual-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+    const cardId = data.cardId || MANUAL_CARD.id;
+    const cards = store.cards[cardId] ? store.cards : { ...store.cards, [cardId]: { ...MANUAL_CARD, id: cardId } };
+    const tx = {
+      id,
+      source: 'manual',
+      cardId,
+      date: data.date,
+      time: '',
+      merchant: String(data.merchant || '').trim(),
+      amount: Math.abs(Number(data.amount) || 0),
+      currency: data.currency || 'DOP',
+      type: data.type || 'consumo',
+      status: 'aprobada',
+      categoryOverride: data.categoryOverride || '',
+      editedAt: Date.now()
+    };
+    return { ...store, cards, tx: { ...store.tx, [id]: tx } };
+  }
+
+  function deleteManual(store, id) {
+    const tx = store.tx[id];
+    if (!tx || tx.source !== 'manual') return store;
+    return { ...store, tx: { ...store.tx, [id]: { id, source: 'manual', deleted: true, editedAt: Date.now() } } };
+  }
+
   // --- 6. CATEGORÍAS Y VISTAS ---
   function autoCategory(tx) {
     if (tx.type === 'retiro') return 'efectivo';
@@ -357,6 +398,7 @@
   }
 
   function categoryFor(tx, rules) {
+    if (tx.categoryOverride && CATEGORY_BY_ID[tx.categoryOverride]) return tx.categoryOverride;
     if (tx.type === 'consumo') {
       const rule = (rules || {})[merchantKey(tx.merchantDetail || tx.merchant)];
       if (rule && CATEGORY_BY_ID[rule]) return rule;
@@ -370,7 +412,7 @@
 
   // Lista de movimientos lista para mostrar: categorías aplicadas y cargos de PayPal con nombre
   function getMovements(store) {
-    const list = Object.values(store.tx || {}).map(tx => ({ ...tx }));
+    const list = Object.values(store.tx || {}).filter(tx => !tx.deleted).map(tx => ({ ...tx }));
     const cardsByLast4 = {};
     Object.values(store.cards || {}).forEach(c => { if (c.last4) cardsByLast4[c.last4] = c.id; });
 
@@ -725,6 +767,7 @@
     CATEGORIES,
     CATEGORY_BY_ID,
     TYPE_LABELS,
+    MANUAL_CARD,
     flatten,
     parseEmail,
     merchantKey,
@@ -734,6 +777,8 @@
     clearStore,
     mergeStores,
     ingestParsed,
+    saveManual,
+    deleteManual,
     getMovements,
     getCards,
     summarize,
