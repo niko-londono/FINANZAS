@@ -1,11 +1,11 @@
 /**
  * ==============================================================================
- * MAESTRO.js - Motor de Datos, Cálculos y Conexión en la Nube (Google Sheets)
+ * MAESTRO.js - Motor de Datos, Cálculos y Caché Local (la nube vive en MAESTRO.supabase.js)
  * Proyecto: Financial Budget Dashboard (Finanzas)
  * ==============================================================================
  * Este archivo centraliza:
  * 1. Definición de modelos de datos predeterminados (Categorías, Resumen, Tarjetas, Notas, Distribución).
- * 2. Motor de persistencia híbrido (localStorage + Google Apps Script / Google Sheets con resolución de conflictos por timestamp).
+ * 2. Persistencia: caché en localStorage y mezcla con la nube (Supabase) con resolución de conflictos por timestamp.
  * 3. Cálculos financieros: Total Income, Total Expenses, Remaining Balance, Sueldo Cuadre,
  *    categorías virtuales (Difference / Prests, mant), totales de distribución y anuales.
  * 4. Utilidades de formateo y validación monetaria.
@@ -15,9 +15,7 @@
   'use strict';
 
   // --- 1. CONFIGURACIÓN Y CONSTANTES ---
-  const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbzkqT6M_wM2b8ZTAua5O-DvS6nOs5MeKy-9qdUcNBWrJVh8si8VyVE2fUl6YSWomPnRCw/exec';
   const STORAGE_KEY_BY_MONTH = 'budget_by_month';
-  const STORAGE_KEY_GAS_URL = 'gas_api_url';
   const STORAGE_KEY_COLLAPSED = 'collapsed_categories';
   const STORAGE_KEY_SHARED = 'finanzas_shared';
 
@@ -398,51 +396,14 @@
     return Object.keys(obj).every(k => /^\d{4}-\d{2}$/.test(k) && obj[k] && Array.isArray(obj[k].categories));
   }
 
-  // Google Sheets convierte "2026-10" en fecha y el script antiguo la devolvía como texto
-  // ("Thu Oct 01 2026 00:00:00 GMT-0400 ..."). Devuelve "AAAA-MM" o null.
-  const MONTH_ABBR = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  function normalizeMonthKey(key) {
-    const text = String(key || '').trim();
-    if (/^\d{4}-\d{2}$/.test(text)) return text;
-    const m = text.match(/^[A-Za-z]{3} ([A-Za-z]{3}) \d{1,2} (\d{4})\b/);
-    const idx = m ? MONTH_ABBR.indexOf(m[1]) : -1;
-    return idx === -1 ? null : `${m[2]}-${String(idx + 1).padStart(2, '0')}`;
-  }
-
   function monthLastSaved(month) {
     return (month && month.extra && month.extra.lastSaved) || 0;
   }
 
-  // Normaliza las claves de mes; si una se repite, gana la versión guardada más tarde
-  function normalizeCloudMonths(loaded) {
-    if (!loaded || typeof loaded !== 'object' || Array.isArray(loaded)) return loaded;
-    const out = {};
-    Object.keys(loaded).forEach(k => {
-      const key = normalizeMonthKey(k);
-      if (!key) return;
-      if (!out[key] || monthLastSaved(loaded[k]) >= monthLastSaved(out[key])) out[key] = loaded[k];
-    });
-    return out;
-  }
-
   // Une los meses de la nube con los locales: por mes gana la versión con lastSaved más reciente
   // (la nube gana en empate). Devuelve null si la respuesta no trae meses válidos.
-  function mergeCloudByMonth(localByMonth, cloudData, currentMonth) {
-    let loaded = normalizeCloudMonths(cloudData && cloudData.byMonth);
-
-    // Retrocompatibilidad con el script antiguo (todo en la celda A1)
-    if (!loaded && cloudData && (Array.isArray(cloudData) || cloudData.categories || cloudData.extra)) {
-      const oldCats = Array.isArray(cloudData) ? cloudData : cloudData.categories;
-      if (oldCats && oldCats.length > 0) {
-        loaded = {
-          [currentMonth]: {
-            categories: oldCats,
-            extra: ensureAppExtraDefaults(cloudData.extra || DEFAULT_APP_EXTRA)
-          }
-        };
-      }
-    }
-
+  function mergeCloudByMonth(localByMonth, cloudData) {
+    const loaded = cloudData && cloudData.byMonth;
     if (!isValidByMonth(loaded) || Object.keys(loaded).length === 0) return null;
 
     const merged = { ...localByMonth };
@@ -556,59 +517,18 @@
     return byMonth;
   }
 
-  // --- 6. INTEGRACIÓN CON GOOGLE APPS SCRIPT / GOOGLE SHEETS ---
-
-  // null = nunca configurada (usa la URL por defecto); '' = el usuario eligió solo almacenamiento local
-  function getGasUrl() {
-    const stored = safeStorage.get(STORAGE_KEY_GAS_URL);
-    return stored === null ? DEFAULT_GAS_URL : stored;
-  }
-
-  function setGasUrl(url) {
-    safeStorage.set(STORAGE_KEY_GAS_URL, (url || '').trim());
-  }
-
-  async function loadFromGAS(apiUrl) {
-    const targetUrl = apiUrl || getGasUrl();
-    if (!targetUrl) throw new Error('No hay URL configurada para Google Apps Script.');
-
-    const response = await fetch(targetUrl);
-    if (!response.ok) {
-      throw new Error(`Error en respuesta HTTP: ${response.status}`);
-    }
-    const data = await response.json();
-    return data;
-  }
-
-  async function saveToGAS(apiUrl, byMonth, currentCategories, currentExtra, shared) {
-    const targetUrl = apiUrl || getGasUrl();
-    if (!targetUrl) throw new Error('No hay URL configurada para Google Apps Script.');
-
-    const payload = {
-      byMonth: byMonth,
-      categories: currentCategories, // Retrocompatibilidad
-      extra: currentExtra,           // Retrocompatibilidad
-      shared: shared || undefined
-    };
-    const body = JSON.stringify(payload);
-
-    // Google Apps Script Web App redirige con 302, mode: 'no-cors' permite enviar el payload
-    await fetch(targetUrl, {
-      method: 'POST',
-      mode: 'no-cors',
-      headers: { 'Content-Type': 'text/plain' },
-      body,
-      // keepalive deja terminar el envío si la pestaña se cierra (solo cuerpos pequeños)
-      keepalive: body.length < 60000
-    });
-
-    return true;
+  // --- 6. CACHÉ LOCAL TRAS CERRAR SESIÓN ---
+  // La nube es Supabase (MAESTRO.supabase.js). Al cerrar sesión se borra la copia local para que
+  // el siguiente usuario del navegador no vea estos datos.
+  function clearLocalData() {
+    [STORAGE_KEY_BY_MONTH, STORAGE_KEY_SHARED, STORAGE_KEY_COLLAPSED, 'usd_rate', 'card_movements_v1',
+      'budget_categories_backup_v1', 'app_extra_data_backup_v1'].forEach(key => safeStorage.remove(key));
   }
 
   // --- TASA DEL DÓLAR ---
-  // Se consulta en cada carga de la página. Fuente principal: Banco Central (vía Apps Script,
-  // porque el Excel del BCRD no permite leerlo desde el navegador). Si el script falla o es una
-  // versión sin "?action=tasa", se usa open.er-api.com. La última tasa queda guardada por si no hay internet.
+  // Se consulta en cada carga de la página. Fuente principal: Banco Central (función "tasa" de
+  // Supabase, porque el Excel del BCRD no permite leerlo desde el navegador). Si falla se usa
+  // open.er-api.com. La última tasa queda guardada por si no hay internet.
   const STORAGE_KEY_USD_RATE = 'usd_rate';
   const FALLBACK_RATE_URL = 'https://open.er-api.com/v6/latest/USD';
 
@@ -621,20 +541,18 @@
     }
   }
 
-  async function fetchUsdRate(apiUrl) {
-    const targetUrl = apiUrl === undefined ? getGasUrl() : apiUrl;
+  async function fetchUsdRate() {
     let rate = null;
     let bcrdError = null;
 
-    if (targetUrl) {
+    const SB = window.FinanzasSupabase;
+    if (SB) {
       try {
-        const sep = targetUrl.includes('?') ? '&' : '?';
-        const res = await fetch(`${targetUrl}${sep}action=tasa&t=${Date.now()}`, { cache: 'no-store' });
-        const data = await res.json();
+        const data = await SB.fetchTasa();
         if (data && data.ok && Number(data.venta) > 0) {
           rate = { fuente: 'BCRD', fecha: data.fecha, compra: Number(data.compra), venta: Number(data.venta) };
         } else {
-          bcrdError = (data && data.error) || 'El script aún no tiene la consulta de tasa.';
+          bcrdError = (data && data.error) || 'La función de la tasa no devolvió datos.';
         }
       } catch (err) {
         bcrdError = err.message;
@@ -672,10 +590,8 @@
     DEFAULT_APP_EXTRA,
     DEFAULT_SUMMARY_ROWS,
     DEFAULT_NOTES,
-    DEFAULT_GAS_URL,
     CATEGORY_COLORS,
     STORAGE_KEY_BY_MONTH,
-    STORAGE_KEY_GAS_URL,
     STORAGE_KEY_COLLAPSED,
     safeStorage,
     getCurrentYYYYMM,
@@ -698,16 +614,12 @@
     createMonthFrom,
     isValidByMonth,
     mergeCloudByMonth,
-    normalizeMonthKey,
     loadStoredShared,
     storeShared,
     deriveSharedFromMonths,
     mergeCloudShared,
     loadInitialByMonthState,
-    getGasUrl,
-    setGasUrl,
-    loadFromGAS,
-    saveToGAS,
+    clearLocalData,
     loadStoredUsdRate,
     fetchUsdRate,
     exportBackupJSON

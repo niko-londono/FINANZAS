@@ -6,10 +6,11 @@
  * Interfaz completa en componentes React:
  * - Selector global de mes (YYYY-MM) con indicador de meses con datos
  * - Vistas: Presupuesto, Resumen, Distribución, Tarjetas, Notas, Ajustes
- * - Modales: Agregar categoría, Conexión con la nube (GAS), Agregar/Editar nota
+ * - Modales: Agregar categoría, Agregar/Editar nota
  * - Avisos (toasts) en lugar de alert()
- * - Persistencia por mes y sincronización con Google Sheets (GAS)
- * Depende de window.FinanzasMaestro (MAESTRO.js) para datos y cálculos.
+ * - Inicio de sesión con Google y persistencia por mes en Supabase (caché en localStorage)
+ * Depende de window.FinanzasMaestro (MAESTRO.js) para datos y cálculos y de
+ * window.FinanzasSupabase (MAESTRO.supabase.js) para la cuenta y la nube.
  */
 
 (function () {
@@ -89,11 +90,13 @@
     { tab: 'settings', label: 'Ajustes', Icon: Icons.Settings }
   ];
 
+  const SB = window.FinanzasSupabase;
+
   const DB_STATUS_TEXT = {
-    offline: 'Solo en este navegador',
+    offline: 'Sin conexión',
     syncing: 'Guardando…',
     connected: 'Sincronizado',
-    error: 'Sin conexión con la hoja'
+    error: 'No se pudo guardar'
   };
 
   const NOTE_TAGS = {
@@ -127,7 +130,7 @@
   // ============================================================================
   // COMPONENTE PRINCIPAL
   // ============================================================================
-  function FinancialBudgetDashboard() {
+  function FinancialBudgetDashboard({ user }) {
     // 1. Estado Maestro
     const [byMonth, setByMonth] = useState(() => FM.loadInitialByMonthState());
     // Notas y pagos marcados a mano: no dependen del mes. null = aún sin guardar (se derivan de los meses)
@@ -148,8 +151,7 @@
     });
 
     const [dbStatus, setDbStatus] = useState('offline'); // offline | syncing | connected | error
-    const [gasUrl, setGasUrlState] = useState(() => FM.getGasUrl());
-    const [modalState, setModalState] = useState({ type: null, data: null }); // 'addCategory' | 'dbConfig' | 'note'
+    const [modalState, setModalState] = useState({ type: null, data: null }); // 'addCategory' | 'note'
     const [distGraphMode, setDistGraphMode] = useState('amount'); // 'amount' | 'percent'
     const [toast, setToast] = useState(null);
     // Tasa del dólar: arranca con la última guardada y se vuelve a consultar en cada carga
@@ -157,11 +159,11 @@
 
     useEffect(() => {
       let alive = true;
-      FM.fetchUsdRate(gasUrl)
+      FM.fetchUsdRate()
         .then(rate => { if (alive) setUsdRate(rate); })
         .catch(err => console.warn('No se pudo actualizar la tasa del dólar:', err));
       return () => { alive = false; };
-    }, [gasUrl]);
+    }, []);
 
     const hasLoadedFromCloudRef = useRef(false);
     const saveTimeoutRef = useRef(null);
@@ -205,29 +207,25 @@
 
     const metrics = useMemo(() => FM.computeMetrics(categories), [categories]);
 
-    // 2. Persistencia en localStorage y Google Apps Script
+    // 2. Persistencia en localStorage (caché) y Supabase
     const flushCloudSave = useCallback(async () => {
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = null;
-      if (!gasUrl) return;
       try {
-        const all = byMonthRef.current;
-        const currentObj = all[currentMonthRef.current] || {};
-        await FM.saveToGAS(gasUrl, all, currentObj.categories, currentObj.extra, storedSharedRef.current);
+        await SB.saveBudget(byMonthRef.current, storedSharedRef.current);
         setDbStatus('connected');
       } catch (err) {
-        console.error('Error sincronizando con Google Apps Script:', err);
+        console.error('Error guardando en Supabase:', err);
         setDbStatus('error');
       }
-    }, [gasUrl]);
+    }, []);
 
     // Sincronización en la nube con espera de 500 ms
     const scheduleCloudSave = useCallback(() => {
-      if (!gasUrl) return;
       setDbStatus('syncing');
       clearTimeout(saveTimeoutRef.current);
       saveTimeoutRef.current = setTimeout(flushCloudSave, 500);
-    }, [gasUrl, flushCloudSave]);
+    }, [flushCloudSave]);
 
     const persistState = useCallback((updatedByMonth) => {
       byMonthRef.current = updatedByMonth;
@@ -256,17 +254,13 @@
       persistState(nextByMonth);
     }, [byMonth, currentMonth, categories, appExtra, persistState]);
 
-    // 3. Carga desde Google Apps Script (inicial y "Sincronizar ahora")
+    // 3. Carga desde Supabase (inicial y "Sincronizar ahora")
     const pullFromCloud = useCallback(async () => {
-      if (!gasUrl) {
-        setDbStatus('offline');
-        return false;
-      }
       setDbStatus('syncing');
       try {
-        const cloudData = await FM.loadFromGAS(gasUrl);
+        const cloudData = await SB.loadBudget();
         setByMonth(prev => {
-          const merged = FM.mergeCloudByMonth(prev, cloudData, currentMonth);
+          const merged = FM.mergeCloudByMonth(prev, cloudData);
           if (!merged) return prev;
           FM.safeStorage.set(FM.STORAGE_KEY_BY_MONTH, JSON.stringify(merged));
           return merged;
@@ -279,32 +273,22 @@
         setDbStatus('connected');
         return true;
       } catch (err) {
-        console.warn('No se pudo conectar a Google Apps Script:', err);
+        console.warn('No se pudo leer de Supabase:', err);
         setDbStatus('error');
         return false;
       }
-    }, [gasUrl, currentMonth]);
-
-    // Cambiar la URL del backend vuelve a cargar los datos desde esa hoja
-    const applyGasUrl = useCallback((url) => {
-      const clean = (url || '').trim();
-      hasLoadedFromCloudRef.current = false;
-      FM.setGasUrl(clean);
-      setGasUrlState(clean);
-      if (!clean) setDbStatus('offline');
     }, []);
 
     useEffect(() => {
-      if (hasLoadedFromCloudRef.current || !gasUrl) return;
+      if (hasLoadedFromCloudRef.current) return;
       hasLoadedFromCloudRef.current = true;
       pullFromCloud();
-    }, [gasUrl, pullFromCloud]);
+    }, [pullFromCloud]);
 
     // El celular deja la app abierta en segundo plano: al volver a ella se relee la nube
     // para ver lo que se cambió en otro dispositivo. Al salir se sube lo pendiente.
     const lastPullRef = useRef(Date.now());
     useEffect(() => {
-      if (!gasUrl) return undefined;
       const onVisibility = () => {
         if (document.visibilityState === 'hidden') {
           if (saveTimeoutRef.current) flushCloudSave();
@@ -320,7 +304,7 @@
         document.removeEventListener('visibilitychange', onVisibility);
         window.removeEventListener('focus', onVisibility);
       };
-    }, [gasUrl, pullFromCloud, flushCloudSave]);
+    }, [pullFromCloud, flushCloudSave]);
 
     // 4. Cambiar mes
     const switchMonth = useCallback((targetMonth) => {
@@ -364,9 +348,9 @@
       <button
         type="button"
         className={`sync sync-${dbStatus} ${compact ? 'sync-compact' : ''}`}
-        onClick={() => setModalState({ type: 'dbConfig' })}
+        onClick={() => goToTab('settings')}
         title={DB_STATUS_TEXT[dbStatus]}
-        aria-label={`Conexión con la nube: ${DB_STATUS_TEXT[dbStatus]}`}
+        aria-label={`Estado de la sincronización: ${DB_STATUS_TEXT[dbStatus]}`}
       >
         <span className="sync-dot" />
         {!compact && <span>{DB_STATUS_TEXT[dbStatus]}</span>}
@@ -474,7 +458,6 @@
             {activeTab === 'tarjetas' && (
               <TabTarjetas
                 currentMonth={currentMonth}
-                gasUrl={gasUrl}
                 notify={notify}
                 cardPayments={shared.cardPayments}
                 onUpdateCardPayments={(cardPayments) => updateShared({ cardPayments })}
@@ -504,19 +487,11 @@
 
             {activeTab === 'settings' && (
               <TabSettings
-                gasUrl={gasUrl}
+                user={user}
                 dbStatus={dbStatus}
-                onSaveGasUrl={(url) => {
-                  applyGasUrl(url);
-                  notify(url.trim() ? 'URL guardada. Cargando datos de la hoja…' : 'Sincronización desactivada: los datos quedan solo en este navegador.');
-                }}
                 onManualSync={async () => {
-                  if (!gasUrl) {
-                    notify('No hay URL de Apps Script: los datos solo se guardan en este navegador.', 'warn');
-                    return;
-                  }
                   const ok = await pullFromCloud();
-                  notify(ok ? 'Datos actualizados desde Google Sheets.' : 'No se pudo conectar con la hoja. Revisa la URL e inténtalo de nuevo.', ok ? 'ok' : 'error');
+                  notify(ok ? 'Datos actualizados desde Supabase.' : 'No se pudo conectar con Supabase. Inténtalo de nuevo.', ok ? 'ok' : 'error');
                 }}
                 onExportBackup={() => FM.exportBackupJSON(byMonth)}
                 onImportBackup={(importedByMonth) => {
@@ -564,19 +539,6 @@
               updateCurrentMonthData([...categories, newCat], undefined);
               closeModal();
               notify(`Categoría "${newCat.name}" agregada.`, 'ok');
-            }}
-          />
-        )}
-
-        {modalState.type === 'dbConfig' && (
-          <DbConfigModal
-            currentUrl={gasUrl}
-            dbStatus={dbStatus}
-            onClose={closeModal}
-            onSaveUrl={(newUrl) => {
-              applyGasUrl(newUrl);
-              closeModal();
-              notify(newUrl.trim() ? 'URL guardada. Cargando datos de la hoja…' : 'Sincronización desactivada.');
             }}
           />
         )}
@@ -1346,11 +1308,20 @@
 
   const DETAIL_KEY = 'mov_detail_open';
 
-  function TabTarjetas({ currentMonth, gasUrl, notify, cardPayments, onUpdateCardPayments }) {
+  function TabTarjetas({ currentMonth, notify, cardPayments, onUpdateCardPayments }) {
     const [store, setStore] = useState(() => FB.loadStore());
     const [cardFilter, setCardFilter] = useState('all');
     const [detailOpen, setDetailOpenState] = useState(() => FM.safeStorage.get(DETAIL_KEY) === '1');
     const movements = useMemo(() => FB.getMovements(store), [store]);
+
+    // Al abrir Tarjetas se baja el historial de Supabase y se sube lo que solo estaba en este navegador
+    useEffect(() => {
+      let alive = true;
+      FB.syncStore(FB.loadStore())
+        .then(({ store: merged }) => { if (alive) setStore(merged); })
+        .catch(err => { if (alive) notify(`No se pudo leer el historial de Supabase: ${err.message}`, 'warn'); });
+      return () => { alive = false; };
+    }, [notify]);
 
     const setDetailOpen = useCallback((open) => {
       setDetailOpenState(open);
@@ -1379,7 +1350,6 @@
         />
         <CardMovements
           currentMonth={currentMonth}
-          gasUrl={gasUrl}
           notify={notify}
           store={store}
           setStore={setStore}
@@ -1529,7 +1499,7 @@
     );
   }
 
-  function CardMovements({ currentMonth, gasUrl, notify, store, setStore, movements, cardFilter, setCardFilter, detailOpen, setDetailOpen }) {
+  function CardMovements({ currentMonth, notify, store, setStore, movements, cardFilter, setCardFilter, detailOpen, setDetailOpen }) {
     const [progress, setProgress] = useState(null); // { done, total } mientras lee Gmail
     const [connected, setConnected] = useState(() => FB.hasSession());
     const [range, setRange] = useState('month'); // 'month' | 'year'
@@ -1568,12 +1538,11 @@
     useEffect(() => { setVisible(LIST_PAGE); }, [cardFilter, categoryFilter, range, currentMonth]);
 
     const scheduleCloudSave = useCallback((nextStore) => {
-      if (!gasUrl || !FB.hasSession()) return;
       clearTimeout(cloudTimerRef.current);
       cloudTimerRef.current = setTimeout(() => {
-        FB.cloudSave(gasUrl, nextStore).catch(err => notify(`No se guardó en la hoja: ${err.message}`, 'warn'));
+        FB.cloudSave(nextStore).catch(err => notify(`No se guardó en Supabase: ${err.message}`, 'warn'));
       }, 1500);
-    }, [gasUrl, notify]);
+    }, [notify]);
 
     const connectAndSync = async () => {
       let cloudError = null;
@@ -1582,13 +1551,11 @@
         setConnected(true);
         let working = FB.loadStore();
 
-        if (gasUrl) {
-          try {
-            const cloud = await FB.cloudLoad(gasUrl);
-            if (cloud) working = FB.mergeStores(working, cloud);
-          } catch (err) {
-            cloudError = err.message;
-          }
+        try {
+          const cloud = await FB.cloudLoad();
+          if (cloud) working = FB.mergeStores(working, cloud);
+        } catch (err) {
+          cloudError = err.message;
         }
 
         // Primera vez: desde la fecha elegida. Después: desde una semana antes de la última lectura.
@@ -1601,14 +1568,14 @@
         FB.saveStore(working);
         setStore({ ...working });
 
-        if (gasUrl && !cloudError) {
-          try { await FB.cloudSave(gasUrl, working); } catch (err) { cloudError = err.message; }
+        if (!cloudError) {
+          try { await FB.cloudSave(working); } catch (err) { cloudError = err.message; }
         }
 
         const base = res.read === 0
           ? 'No hay correos nuevos de los bancos.'
           : `${res.added} movimiento${res.added === 1 ? '' : 's'} nuevo${res.added === 1 ? '' : 's'} de ${res.read} correo${res.read === 1 ? '' : 's'} leído${res.read === 1 ? '' : 's'}.`;
-        if (cloudError) notify(`${base} No se guardó en la hoja: ${cloudError}`, 'warn');
+        if (cloudError) notify(`${base} No se guardó en Supabase: ${cloudError}`, 'warn');
         else notify(base, 'ok');
       } catch (err) {
         setConnected(FB.hasSession());
@@ -1641,10 +1608,6 @@
       } else {
         notify(data.id ? 'Movimiento actualizado.' : 'Movimiento agregado.', 'ok');
       }
-      if (gasUrl && !FB.hasSession()) {
-        // Sin sesión de Google no se puede escribir en la hoja Movimientos; sube al conectar Gmail
-        setTimeout(() => notify('Queda en este navegador; se sube a la hoja la próxima vez que conectes Gmail.'), 50);
-      }
     };
 
     const removeManualTx = (tx) => {
@@ -1661,7 +1624,7 @@
     };
 
     const clearLocal = () => {
-      if (!window.confirm('¿Borrar el historial de movimientos de este navegador? Se puede volver a leer desde Gmail (y la copia en Google Sheets no se toca). Los movimientos manuales que no se hayan subido a la hoja se pierden.')) return;
+      if (!window.confirm('¿Borrar el historial de movimientos de este navegador? La copia en Supabase no se toca: vuelve a bajar al abrir Tarjetas.')) return;
       setStore(FB.clearStore());
       setCardFilter('all');
       setCategoryFilter(null);
@@ -2253,61 +2216,84 @@
   // ============================================================================
   // CUENTA (Supabase)
   // ============================================================================
-  function AccountPanel() {
-    const SB = window.FinanzasSupabase;
-    const [user, setUser] = useState(null);
-    const [ready, setReady] = useState(!SB);
-    const [error, setError] = useState('');
+  function AccountPanel({ user, dbStatus, onManualSync }) {
+    const [syncing, setSyncing] = useState(false);
 
-    useEffect(() => {
-      if (!SB) return undefined;
-      let alive = true;
-      SB.getUser().then(u => { if (alive) { setUser(u); setReady(true); } });
-      const stop = SB.onAuthChange(u => { if (alive) setUser(u); });
-      return () => { alive = false; stop(); };
-    }, [SB]);
-
-    const signIn = async () => {
-      setError('');
-      const { error: err } = await SB.signInWithGoogle();
-      if (err) setError(err.message);
+    const signOut = async () => {
+      FM.clearLocalData();
+      await SB.signOut();
     };
 
     return (
       <section className="panel" aria-labelledby="account-title">
-        <SectionHead title="Cuenta" id="account-title">
-          <span className={`pill pill-${user ? 'connected' : 'offline'}`}>{user ? 'Sesión iniciada' : 'Sin sesión'}</span>
+        <SectionHead title="Cuenta y datos" id="account-title">
+          <span className={`pill pill-${dbStatus}`}>{DB_STATUS_TEXT[dbStatus]}</span>
         </SectionHead>
         <p className="muted">
-          Inicia sesión con Google para guardar los datos en Supabase, protegidos por tu cuenta.
+          Los datos se guardan en Supabase, protegidos por tu cuenta de Google. Este navegador conserva una copia para abrir más rápido.
         </p>
-        {!SB && <p className="muted">No se pudo cargar Supabase. Revisa la conexión y recarga la página.</p>}
-        {SB && ready && user && (
-          <div className="button-row">
-            <span className="muted">{user.email}</span>
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => SB.signOut()}>Cerrar sesión</button>
-          </div>
-        )}
-        {SB && ready && !user && (
-          <div className="button-row">
-            <button type="button" className="btn btn-primary btn-sm" onClick={signIn}>Iniciar sesión con Google</button>
-          </div>
-        )}
-        {error && <p className="muted" role="alert">{error}</p>}
+        <p className="muted">{user.email}</p>
+        <div className="button-row">
+          <button type="button" className="btn btn-secondary btn-sm" disabled={syncing}
+            onClick={async () => { setSyncing(true); await onManualSync(); setSyncing(false); }}>
+            <Icons.Refresh /> {syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
+          </button>
+          <button type="button" className="btn btn-secondary btn-sm" onClick={signOut}>Cerrar sesión</button>
+        </div>
       </section>
     );
+  }
+
+  // Pantalla de entrada: sin sesión no se muestra ningún dato
+  function LoginScreen({ error }) {
+    const [message, setMessage] = useState(error || '');
+    const [busy, setBusy] = useState(false);
+
+    const signIn = async () => {
+      setMessage('');
+      setBusy(true);
+      const { error: err } = await SB.signInWithGoogle();
+      if (err) { setMessage(err.message); setBusy(false); }
+    };
+
+    return (
+      <main className="login">
+        <div className="login-card panel">
+          <span className="brand-mark" aria-hidden="true">F</span>
+          <h1>Finanzas</h1>
+          <p className="muted">Inicia sesión con tu cuenta de Google para ver tu presupuesto.</p>
+          <button type="button" className="btn btn-primary" onClick={signIn} disabled={busy || !SB}>
+            {busy ? 'Abriendo Google…' : 'Iniciar sesión con Google'}
+          </button>
+          {!SB && <p className="muted" role="alert">No se pudo cargar Supabase. Revisa la conexión y recarga la página.</p>}
+          {message && <p className="muted" role="alert">{message}</p>}
+        </div>
+      </main>
+    );
+  }
+
+  // Decide entre pantalla de entrada y aplicación según la sesión de Supabase
+  function App() {
+    const [user, setUser] = useState(undefined); // undefined = comprobando sesión
+
+    useEffect(() => {
+      if (!SB) { setUser(null); return undefined; }
+      let alive = true;
+      SB.getUser().then(u => { if (alive) setUser(u); }).catch(() => { if (alive) setUser(null); });
+      const stop = SB.onAuthChange(u => { if (alive) setUser(u); });
+      return () => { alive = false; stop(); };
+    }, []);
+
+    if (user === undefined) return <div className="login" role="status">Abriendo sesión…</div>;
+    if (!user) return <LoginScreen />;
+    return <FinancialBudgetDashboard key={user.id} user={user} />;
   }
 
   // ============================================================================
   // VISTA 6: AJUSTES
   // ============================================================================
-  function TabSettings({ gasUrl, dbStatus, onSaveGasUrl, onManualSync, onExportBackup, onImportBackup, onImportError }) {
-    const [urlInput, setUrlInput] = useState(gasUrl || '');
-    const [syncing, setSyncing] = useState(false);
+  function TabSettings({ user, dbStatus, onManualSync, onExportBackup, onImportBackup, onImportError }) {
     const fileInputRef = useRef(null);
-
-    // Mantener el campo al día si la URL cambia desde el modal de la nube
-    useEffect(() => { setUrlInput(gasUrl || ''); }, [gasUrl]);
 
     const handleFileImport = (e) => {
       const file = e.target.files[0];
@@ -2326,30 +2312,7 @@
 
     return (
       <div className="view settings">
-        <AccountPanel />
-
-        <section className="panel" aria-labelledby="cloud-title">
-          <SectionHead title="Google Sheets" id="cloud-title">
-            <span className={`pill pill-${dbStatus}`}>{DB_STATUS_TEXT[dbStatus]}</span>
-          </SectionHead>
-          <p className="muted">
-            Guarda el presupuesto en una hoja de cálculo mediante una aplicación web de Apps Script. Sin URL, los datos quedan solo en este navegador.
-          </p>
-          <form className="field-row" onSubmit={(e) => { e.preventDefault(); onSaveGasUrl(urlInput); }}>
-            <label className="field">
-              <span className="field-label">URL de la aplicación web</span>
-              <input type="url" className="input" placeholder="https://script.google.com/macros/s/…/exec"
-                value={urlInput} onChange={(e) => setUrlInput(e.target.value)} />
-            </label>
-            <div className="button-row">
-              <button type="submit" className="btn btn-primary btn-sm">Guardar URL</button>
-              <button type="button" className="btn btn-secondary btn-sm" disabled={syncing}
-                onClick={async () => { setSyncing(true); await onManualSync(); setSyncing(false); }}>
-                <Icons.Refresh /> {syncing ? 'Sincronizando…' : 'Sincronizar ahora'}
-              </button>
-            </div>
-          </form>
-        </section>
+        <AccountPanel user={user} dbStatus={dbStatus} onManualSync={onManualSync} />
 
         <section className="panel" aria-labelledby="backup-title">
           <SectionHead title="Respaldos" id="backup-title" />
@@ -2446,31 +2409,6 @@
     );
   }
 
-  function DbConfigModal({ currentUrl, dbStatus, onClose, onSaveUrl }) {
-    const [url, setUrl] = useState(currentUrl || '');
-
-    return (
-      <Modal title="Conexión con Google Sheets" onClose={onClose}>
-        <form onSubmit={(e) => { e.preventDefault(); onSaveUrl(url); }}>
-          <div className="modal-body">
-            <p className="status-line">
-              <span className={`pill pill-${dbStatus}`}>{DB_STATUS_TEXT[dbStatus]}</span>
-            </p>
-            <label className="field">
-              <span className="field-label">URL de la aplicación web de Apps Script</span>
-              <input type="url" className="input" placeholder="https://script.google.com/macros/s/…/exec" value={url} onChange={(e) => setUrl(e.target.value)} />
-            </label>
-            <p className="muted small">Déjala vacía para guardar solo en este navegador.</p>
-          </div>
-          <footer className="modal-foot">
-            <button type="button" className="btn btn-secondary" onClick={onClose}>Cancelar</button>
-            <button type="submit" className="btn btn-primary">Guardar conexión</button>
-          </footer>
-        </form>
-      </Modal>
-    );
-  }
-
   function NoteModal({ initialNote, onClose, onSaveNote }) {
     const [title, setTitle] = useState(initialNote ? initialNote.title : '');
     const [tag, setTag] = useState(initialNote ? initialNote.tag : 'STRATEGY');
@@ -2547,7 +2485,7 @@
   // ============================================================================
   const rootEl = document.getElementById('root');
   if (rootEl) {
-    ReactDOM.createRoot(rootEl).render(<FinancialBudgetDashboard />);
+    ReactDOM.createRoot(rootEl).render(<App />);
   } else {
     console.error('No se encontró el elemento #root para montar la aplicación React.');
   }

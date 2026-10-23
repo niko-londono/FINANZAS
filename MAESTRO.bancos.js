@@ -8,8 +8,8 @@
  * 3. Lectores por banco: convierten cada correo en un movimiento
  *    { fecha, tarjeta, comercio, monto, moneda, tipo, estado }.
  * 4. Categorías por comercio (palabras clave + reglas que el usuario corrige).
- * 5. Guardado local y en Google Sheets (acciones txLoad/txSave del Apps Script,
- *    que verifican que la sesión de Google sea la del dueño de la hoja).
+ * 5. Guardado local (caché) y en Supabase (funciones load_movements / save_movements,
+ *    protegidas por la sesión de la app).
  * No guarda el token de Google: vive solo en memoria y vence en ~1 hora.
  */
 
@@ -622,32 +622,44 @@
     return { found: ids.length, read: pending.length, added, unreadable };
   }
 
-  // --- 9. GUARDADO EN GOOGLE SHEETS (Apps Script) ---
-  async function callScript(gasUrl, payload) {
-    if (!gasUrl) throw new Error('No hay URL de Apps Script configurada.');
-    if (!hasSession()) throw new Error('Conecta Gmail para guardar en la hoja.');
-    // text/plain evita la verificación previa CORS; Apps Script responde con JSON legible
-    const res = await fetch(gasUrl, {
-      method: 'POST',
-      headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-      body: JSON.stringify({ ...payload, token: session.token })
-    });
-    const data = await res.json().catch(() => null);
-    if (!data || typeof data.ok !== 'boolean') {
-      throw new Error('El Apps Script no reconoce los movimientos: actualiza gas_backend.gs y vuelve a implementarlo.');
-    }
-    if (!data.ok) throw new Error(data.error || 'El Apps Script rechazó la petición.');
-    return data;
+  // --- 9. GUARDADO EN SUPABASE ---
+  // Requiere la sesión de la app (Google → Supabase), no la de Gmail: los movimientos manuales
+  // se guardan en la nube sin conectar Gmail.
+  function cloudApi() {
+    const SB = window.FinanzasSupabase;
+    if (!SB) throw new Error('Supabase no está disponible. Recarga la página.');
+    return SB;
   }
 
-  async function cloudLoad(gasUrl) {
-    const data = await callScript(gasUrl, { action: 'txLoad' });
-    return data.store || null;
+  async function cloudLoad() {
+    return (await cloudApi().loadMovements()) || null;
   }
 
-  async function cloudSave(gasUrl, store) {
-    await callScript(gasUrl, { action: 'txSave', store });
+  async function cloudSave(store) {
+    await cloudApi().saveMovements(store);
     return true;
+  }
+
+  // ¿Hay algo en `merged` que la nube (`cloud`) todavía no tiene o tiene más viejo?
+  function needsUpload(cloud, merged) {
+    const base = { ...emptyStore(), ...cloud };
+    for (const section of ['tx', 'paypal', 'rules', 'cards']) {
+      for (const [id, value] of Object.entries(merged[section] || {})) {
+        if (JSON.stringify(base[section][id]) !== JSON.stringify(value)) return true;
+      }
+    }
+    return Object.keys(merged.seen || {}).some(id => !base.seen[id]);
+  }
+
+  // Une el historial local con el de la nube y sube lo que solo estaba en este navegador
+  // (movimientos que se leyeron antes de usar Supabase, o manuales sin guardar).
+  async function syncStore(local) {
+    const cloud = await cloudLoad();
+    const merged = mergeStores(local, cloud || {});
+    const uploaded = needsUpload(cloud, merged);
+    if (uploaded) await cloudSave(merged);
+    saveStore(merged);
+    return { store: merged, uploaded };
   }
 
   // --- 10. CICLOS DE TARJETAS DE CRÉDITO (corte y vencimiento) ---
@@ -788,6 +800,7 @@
     syncFromGmail,
     cloudLoad,
     cloudSave,
+    syncStore,
     statementForDueMonth,
     nextDueMonth,
     cardCycle

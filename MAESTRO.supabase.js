@@ -3,7 +3,8 @@
  * MAESTRO.supabase.js - Cuenta y base de datos en Supabase
  * Proyecto: Finanzas (presupuesto mensual)
  * ==============================================================================
- * Expone window.FinanzasSupabase: cliente de Supabase y sesión con Google.
+ * Expone window.FinanzasSupabase: cliente de Supabase, sesión con Google y lectura/guardado
+ * del presupuesto y de los movimientos de tarjetas.
  * La clave "publishable" es pública por diseño: lo que protege los datos son las
  * políticas RLS de cada tabla (cada fila solo la ve su dueño, con sesión iniciada).
  * Depende de la librería supabase-js (index.html), cargada antes de este archivo.
@@ -50,5 +51,30 @@
     return () => data.subscription.unsubscribe();
   }
 
-  window.FinanzasSupabase = { client, getUser, signInWithGoogle, signOut, onAuthChange };
+  // --- Datos: funciones de la base (ver HISTORIAL.md §7). Cada una lee o escribe solo las filas del usuario ---
+  async function rpc(name, args) {
+    const { data, error } = await client.rpc(name, args);
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  // { byMonth: { "YYYY-MM": { categories, extra } }, shared: { notes, cardPayments, lastSaved } | null }
+  const loadBudget = () => rpc('load_budget');
+  const saveBudget = (byMonth, shared) => rpc('save_budget', { p_months: byMonth, p_shared: shared || null });
+
+  // Almacén de movimientos: { tx, paypal, seen, rules, cards, lastSync, updatedAt }
+  const loadMovements = () => rpc('load_movements');
+  const saveMovements = (store) => rpc('save_movements', { p_store: store });
+
+  // Tasa de referencia del dólar del Banco Central (función "tasa" de Supabase)
+  async function fetchTasa() {
+    const { data, error } = await client.functions.invoke('tasa', { body: {} });
+    if (error) throw new Error(error.message);
+    return data;
+  }
+
+  window.FinanzasSupabase = {
+    client, getUser, signInWithGoogle, signOut, onAuthChange,
+    loadBudget, saveBudget, loadMovements, saveMovements, fetchTasa
+  };
 })(window);
