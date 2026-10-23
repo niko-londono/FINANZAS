@@ -2251,6 +2251,54 @@
   }
 
   // ============================================================================
+  // CUENTA (Supabase)
+  // ============================================================================
+  function AccountPanel() {
+    const SB = window.FinanzasSupabase;
+    const [user, setUser] = useState(null);
+    const [ready, setReady] = useState(!SB);
+    const [error, setError] = useState('');
+
+    useEffect(() => {
+      if (!SB) return undefined;
+      let alive = true;
+      SB.getUser().then(u => { if (alive) { setUser(u); setReady(true); } });
+      const stop = SB.onAuthChange(u => { if (alive) setUser(u); });
+      return () => { alive = false; stop(); };
+    }, [SB]);
+
+    const signIn = async () => {
+      setError('');
+      const { error: err } = await SB.signInWithGoogle();
+      if (err) setError(err.message);
+    };
+
+    return (
+      <section className="panel" aria-labelledby="account-title">
+        <SectionHead title="Cuenta" id="account-title">
+          <span className={`pill pill-${user ? 'connected' : 'offline'}`}>{user ? 'Sesión iniciada' : 'Sin sesión'}</span>
+        </SectionHead>
+        <p className="muted">
+          Inicia sesión con Google para guardar los datos en Supabase, protegidos por tu cuenta.
+        </p>
+        {!SB && <p className="muted">No se pudo cargar Supabase. Revisa la conexión y recarga la página.</p>}
+        {SB && ready && user && (
+          <div className="button-row">
+            <span className="muted">{user.email}</span>
+            <button type="button" className="btn btn-secondary btn-sm" onClick={() => SB.signOut()}>Cerrar sesión</button>
+          </div>
+        )}
+        {SB && ready && !user && (
+          <div className="button-row">
+            <button type="button" className="btn btn-primary btn-sm" onClick={signIn}>Iniciar sesión con Google</button>
+          </div>
+        )}
+        {error && <p className="muted" role="alert">{error}</p>}
+      </section>
+    );
+  }
+
+  // ============================================================================
   // VISTA 6: AJUSTES
   // ============================================================================
   function TabSettings({ gasUrl, dbStatus, onSaveGasUrl, onManualSync, onExportBackup, onImportBackup, onImportError }) {
@@ -2278,6 +2326,8 @@
 
     return (
       <div className="view settings">
+        <AccountPanel />
+
         <section className="panel" aria-labelledby="cloud-title">
           <SectionHead title="Google Sheets" id="cloud-title">
             <span className={`pill pill-${dbStatus}`}>{DB_STATUS_TEXT[dbStatus]}</span>
