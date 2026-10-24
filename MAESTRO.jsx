@@ -1799,6 +1799,11 @@
                                 {cardFilter === 'all' && card ? `${card.name}${card.last4 ? ` ··${card.last4}` : ''}` : ''}
                                 {tx.type !== 'consumo' ? `${cardFilter === 'all' && card ? ' · ' : ''}${FB.TYPE_LABELS[tx.type]}` : ''}
                                 {manual ? <span className="tag tag-manual">Manual</span> : null}
+                                {tx.source === 'paypal' ? (
+                                  <span className="tag tag-manual" title={tx.pending ? 'Leído del recibo de PayPal. Cuando llegue el correo del banco se une a ese cargo.' : 'Pagado con saldo de PayPal.'}>
+                                    {tx.pending ? 'PayPal · falta el banco' : 'PayPal'}
+                                  </span>
+                                ) : null}
                                 {declined ? <span className="tag tag-declined">Declinada</span> : null}
                               </span>
                             </div>

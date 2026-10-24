@@ -23,6 +23,8 @@
   const STORAGE_KEY = 'card_movements_v1';
   const GMAIL_API = 'https://gmail.googleapis.com/gmail/v1/users/me';
   const FETCH_CONCURRENCY = 6;
+  // Subir cuando cambie un lector: los correos que no dieron movimiento se vuelven a leer una vez
+  const PARSER_VERSION = 2;
 
   // Solo los correos que traen movimientos (evita descargar publicidad y estados de cuenta)
   const GMAIL_QUERY = [
@@ -234,14 +236,14 @@
     return null;
   }
 
-  // PayPal no se suma por su cuenta: el cargo llega también por el banco.
-  // Se guarda aparte y se usa para ponerle nombre al cargo "PAYPAL *…" del banco.
+  // PayPal se guarda aparte: mientras no llegue el correo del banco se muestra como movimiento
+  // propio; cuando llega, se une al cargo "PAYPAL *…" del banco y no se cuenta dos veces (ver getMovements).
   function parsePaypal(t) {
-    const m = t.match(/Ha (?:pagado|autorizado un pago de) \$([\d,]+(?:\.\d+)?) (USD|EUR|DOP) a (.+?)(?:\s+\(|\s+Ver o administrar)/i);
+    const m = t.match(/Ha (?:pagado|autorizado un pago de) (?:US|RD)?[$€]\s?([\d,]+(?:\.\d+)?) (USD|EUR|DOP) a (.+?)(?:\s+\(|\s+Ver o administrar)/i);
     if (!m) return null;
     const id = (t.match(/Id\. de transacci[oó]n ([A-Z0-9]{10,20})/) || [])[1];
     const d = t.match(/Fecha de la transacci[oó]n (\d{1,2}) (\p{L}{3})\p{L}* (\d{4})/u);
-    const funding = t.match(/(Mastercard|Visa|American Express|Amex|Discover)-(\d{4})\s+\$([\d,]+(?:\.\d+)?)\s+(DOP|USD|EUR)/i);
+    const funding = t.match(/(Mastercard|Visa|American Express|Amex|Discover)-(\d{4})\s+(?:US|RD)?[$€]\s?([\d,]+(?:\.\d+)?)\s+(DOP|USD|EUR)/i);
     return {
       paypalId: id || null,
       merchant: m[3].replace(/\.\.\.$/, '').trim(),
@@ -266,7 +268,7 @@
 
   // --- 5. ALMACÉN LOCAL ---
   function emptyStore() {
-    return { version: 1, tx: {}, paypal: {}, seen: {}, rules: {}, cards: {}, lastSync: 0, updatedAt: 0 };
+    return { version: 1, tx: {}, paypal: {}, seen: {}, rules: {}, cards: {}, lastSync: 0, updatedAt: 0, parsedWith: 0 };
   }
 
   function loadStore() {
@@ -318,7 +320,8 @@
       rules: { ...older.rules, ...newer.rules },
       cards: { ...older.cards, ...newer.cards },
       lastSync: Math.max(base.lastSync || 0, other.lastSync || 0),
-      updatedAt: Math.max(base.updatedAt || 0, other.updatedAt || 0)
+      updatedAt: Math.max(base.updatedAt || 0, other.updatedAt || 0),
+      parsedWith: Math.max(base.parsedWith || 0, other.parsedWith || 0)
     };
   }
 
@@ -328,9 +331,17 @@
     if (!parsed || !parsed.data) return null;
 
     if (parsed.kind === 'paypal') {
+      // La clave es el Id. de PayPal: el aviso de autorización y el recibo del mismo pago son uno
       const key = parsed.data.paypalId || msg.id;
+      const isNew = !store.paypal[key];
       store.paypal[key] = { ...parsed.data, date: parsed.data.date || msg.date, msgId: msg.id };
-      return null;
+      const cardId = paypalCardId(parsed.data.fundingLast4);
+      if (!store.cards[cardId]) {
+        store.cards[cardId] = parsed.data.fundingLast4
+          ? { ...PAYPAL_CARD, id: cardId, name: 'Tarjeta vía PayPal', kind: 'credito', last4: parsed.data.fundingLast4 }
+          : { ...PAYPAL_CARD };
+      }
+      return isNew ? store.paypal[key] : null;
     }
 
     const d = parsed.data;
@@ -410,26 +421,74 @@
     return Math.abs((new Date(isoA) - new Date(isoB)) / 86400000);
   }
 
-  // Lista de movimientos lista para mostrar: categorías aplicadas y cargos de PayPal con nombre
+  // Tarjeta de un pago de PayPal: la del banco con esos 4 dígitos o, si aún no hay correo
+  // de ese banco, una tarjeta "vía PayPal" que se esconde cuando aparece la real.
+  const PAYPAL_CARD = { id: 'paypal', bank: 'paypal', name: 'PayPal', kind: 'cuenta', last4: '' };
+
+  function bankCardsByLast4(store) {
+    const out = {};
+    Object.values(store.cards || {}).forEach(c => { if (c.last4 && c.bank !== 'paypal') out[c.last4] = c.id; });
+    return out;
+  }
+
+  function paypalCardId(last4) {
+    return last4 ? `paypal-${last4}` : PAYPAL_CARD.id;
+  }
+
+  // Lo que el pago cobra a la tarjeta (o al saldo de PayPal si no se pagó con tarjeta)
+  function paypalCharge(pp) {
+    return pp.fundingAmount
+      ? { amount: pp.fundingAmount, currency: pp.fundingCurrency || pp.currency }
+      : { amount: pp.amount, currency: pp.currency };
+  }
+
+  // ¿Este cargo del banco es el mismo pago de PayPal? Misma tarjeta, "PAYPAL" en el comercio,
+  // misma moneda, monto parecido (±3 % por la conversión) y fechas a 7 días o menos.
+  function isSamePaypalCharge(tx, pp, cardId) {
+    const charge = paypalCharge(pp);
+    return tx.cardId === cardId &&
+      tx.source !== 'manual' &&
+      tx.type === 'consumo' &&
+      /PAYPAL/i.test(tx.merchant) &&
+      tx.currency === charge.currency &&
+      Math.abs(tx.amount - charge.amount) <= Math.max(1, charge.amount * 0.03) &&
+      !!pp.date && !!tx.date && daysBetween(tx.date, pp.date) <= 7;
+  }
+
+  // Lista de movimientos lista para mostrar: categorías aplicadas y pagos de PayPal unidos al
+  // cargo del banco. Cada cargo del banco absorbe un solo pago; los pagos sin cargo del banco
+  // se muestran solos (provisionales) y desaparecen cuando llega el correo del banco.
   function getMovements(store) {
     const list = Object.values(store.tx || {}).filter(tx => !tx.deleted).map(tx => ({ ...tx }));
-    const cardsByLast4 = {};
-    Object.values(store.cards || {}).forEach(c => { if (c.last4) cardsByLast4[c.last4] = c.id; });
+    const cardsByLast4 = bankCardsByLast4(store);
 
-    Object.values(store.paypal || {}).forEach(pp => {
-      if (!pp.fundingLast4) return;
-      const cardId = cardsByLast4[pp.fundingLast4];
-      if (!cardId) return;
-      const match = list.find(tx =>
-        tx.cardId === cardId &&
-        !tx.merchantDetail &&
-        /PAYPAL/i.test(tx.merchant) &&
-        tx.currency === pp.fundingCurrency &&
-        Math.abs(tx.amount - pp.fundingAmount) <= Math.max(1, pp.fundingAmount * 0.03) &&
-        pp.date && tx.date && daysBetween(tx.date, pp.date) <= 5
-      );
-      if (match) match.merchantDetail = `${pp.merchant} (PayPal)`;
-    });
+    Object.entries(store.paypal || {})
+      .sort(([, a], [, b]) => String(a.date || '').localeCompare(String(b.date || '')))
+      .forEach(([key, pp]) => {
+        if (!pp.amount) return;
+        const label = `${pp.merchant} (PayPal)`;
+        const bankCardId = pp.fundingLast4 ? cardsByLast4[pp.fundingLast4] : null;
+        const match = bankCardId && list.find(tx => !tx.merchantDetail && isSamePaypalCharge(tx, pp, bankCardId));
+        if (match) {
+          match.merchantDetail = label;
+          return;
+        }
+        const charge = paypalCharge(pp);
+        list.push({
+          id: `paypal-${key}`,
+          source: 'paypal',
+          cardId: bankCardId || paypalCardId(pp.fundingLast4),
+          date: pp.date,
+          time: '',
+          merchant: 'PayPal',
+          merchantDetail: label,
+          amount: charge.amount,
+          currency: charge.currency,
+          type: 'consumo',
+          status: 'aprobada',
+          pending: !!pp.fundingLast4
+        });
+      });
 
     list.forEach(tx => {
       tx.category = categoryFor(tx, store.rules);
@@ -439,9 +498,13 @@
     return list.sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time));
   }
 
+  // Las tarjetas "vía PayPal" se esconden cuando ya llegó un correo del banco de esa tarjeta
   function getCards(store) {
     const order = { credito: 0, debito: 1, cuenta: 2 };
-    return Object.values(store.cards || {}).sort((a, b) =>
+    const cardsByLast4 = bankCardsByLast4(store);
+    return Object.values(store.cards || {})
+      .filter(c => !(c.bank === 'paypal' && c.last4 && cardsByLast4[c.last4]))
+      .sort((a, b) =>
       (order[a.kind] - order[b.kind]) || a.name.localeCompare(b.name));
   }
 
@@ -589,10 +652,20 @@
     };
   }
 
-  // Lee los correos nuevos desde una fecha y los agrega al almacén
+  // Correos ya leídos que sí dieron un movimiento (no hace falta volver a leerlos)
+  function usedMessageIds(store) {
+    const used = {};
+    Object.keys(store.tx || {}).forEach(id => { used[id] = 1; });
+    Object.values(store.paypal || {}).forEach(pp => { if (pp.msgId) used[pp.msgId] = 1; });
+    return used;
+  }
+
+  // Lee los correos nuevos desde una fecha y los agrega al almacén. Si los lectores cambiaron
+  // (PARSER_VERSION), vuelve a leer una vez los correos que antes no dieron movimiento.
   async function syncFromGmail(store, { sinceIso, onProgress } = {}) {
     const ids = await listMessageIds(sinceIso);
-    const pending = ids.filter(id => !store.seen[id]);
+    const retry = (store.parsedWith || 0) < PARSER_VERSION ? usedMessageIds(store) : null;
+    const pending = ids.filter(id => !store.seen[id] || (retry && !retry[id]));
     let done = 0;
     let added = 0;
     let unreadable = 0;
@@ -618,6 +691,7 @@
     await Promise.all(Array.from({ length: Math.min(FETCH_CONCURRENCY, pending.length) }, worker));
 
     store.lastSync = Date.now();
+    store.parsedWith = PARSER_VERSION;
     saveStore(store);
     return { found: ids.length, read: pending.length, added, unreadable };
   }
@@ -780,6 +854,7 @@
     CATEGORY_BY_ID,
     TYPE_LABELS,
     MANUAL_CARD,
+    PAYPAL_CARD,
     flatten,
     parseEmail,
     merchantKey,
